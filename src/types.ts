@@ -64,18 +64,26 @@ export interface BugExercise extends Base {
   bugs: { line: number; options: string[]; explanation: string }[];
 }
 
-/** Pattern recognition speed drill. */
+/** Pattern finder: read a full problem, pick the pattern for the optimal solution. */
 export interface PatternExercise extends Base {
   kind: 'pattern';
   statement: string;
+  example: string;
   constraints: string;
-  answerPattern: PatternId;
-  answerDS: string;
-  why: string;
+  answer: string; // FINDER_PATTERNS id
+  answerPattern: PatternId; // for the pattern filter
+  confusers: string[]; // tempting wrong answers, shown as options first
+  clue: string; // the words in the problem that give it away
+  brute: string; // the obvious approach and why it is too slow
+  insight: string; // how the pattern solves it
+  optimal: string; // complexity of the pattern solution
+  whyNot?: Record<string, string>; // specific reason a tempting option fails
+  followUp?: string; // what interviewers ask next
+  nc?: string; // NeetCode slug
 }
 
 export type Exercise = SyntaxExercise | BugExercise | PatternExercise;
-export type Mode = 'coach' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
+export type Mode = 'coach' | 'roadmap' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
 
 export interface CardState {
   reps: number;

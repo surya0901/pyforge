@@ -1,10 +1,10 @@
 import { BookOpen, CheckCircle2, Play, Timer, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DS_CHOICES, PATTERNS, PATTERN_NAME } from '../data/meta';
-import { DS_FITS, FITS_WHEN, LESSON_BY_ID, LESSON_FOR_PATTERN } from '../data/lessons';
-import { highlight } from '../lib/highlight';
+import { FINDER_BY_ID, FINDER_PATTERNS } from '../data/finder';
+import { LESSON_BY_ID } from '../data/lessons';
 import { shuffle } from '../lib/check';
-import type { PatternExercise, PatternId } from '../types';
+import { highlight } from '../lib/highlight';
+import type { PatternExercise } from '../types';
 import { Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
 
 interface Props {
@@ -13,72 +13,57 @@ interface Props {
   onLearn?: (lessonId: string) => void;
 }
 
-const LIMIT = 15;
+const LIMIT = 45;
 
 export default function PatternDrill({ queue, onResult, onLearn }: Props) {
   const [idx, setIdx] = useState(0);
   const [running, setRunning] = useState(false);
   const [timed, setTimed] = useState(false);
-  const [showCode, setShowCode] = useState(false);
   const ex = queue[idx % Math.max(queue.length, 1)];
-  const [pat, setPat] = useState<PatternId | null>(null);
-  const [ds, setDs] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [pick, setPick] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const [left, setLeft] = useState(LIMIT);
   const [score, setScore] = useState({ right: 0, total: 0 });
   const start = useRef(0);
+  const done = pick !== null || timedOut;
 
-  const patOpts = useMemo(() => {
+  const options = useMemo(() => {
     if (!ex) return [];
-    const others = shuffle(PATTERNS.filter((p) => p.id !== ex.answerPattern)).slice(0, 3).map((p) => p.id);
-    return shuffle([ex.answerPattern, ...others]);
-  }, [ex, idx]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dsOpts = useMemo(() => {
-    if (!ex) return [];
-    const others = shuffle(DS_CHOICES.filter((d) => d !== ex.answerDS)).slice(0, 3);
-    return shuffle([ex.answerDS, ...others]);
+    const conf = ex.confusers.filter((c) => c !== ex.answer && FINDER_BY_ID[c]).slice(0, 3);
+    const fill = shuffle(FINDER_PATTERNS.map((p) => p.id).filter((id) => id !== ex.answer && !conf.includes(id))).slice(0, 3 - conf.length);
+    return shuffle([ex.answer, ...conf, ...fill]);
   }, [ex, idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    setPat(null); setDs(null); setDone(false); setTimedOut(false); setLeft(LIMIT); setShowCode(false);
-    start.current = Date.now();
-  }, [idx, running]);
+  useEffect(() => { setPick(null); setTimedOut(false); setLeft(LIMIT); start.current = Date.now(); }, [idx, running]);
+
+  const finish = (p: string | null, timeout = false) => {
+    if (done || !ex) return;
+    if (timeout) setTimedOut(true); else setPick(p);
+    const right = p === ex.answer;
+    const secs = (Date.now() - start.current) / 1000;
+    onResult(ex.id, right ? (timed && secs < 15 ? 3 : 2) : 0, right ? [] : [timeout ? 'timeout' : 'pattern-miss']);
+    setScore((s) => ({ right: s.right + (right ? 1 : 0), total: s.total + 1 }));
+  };
 
   useEffect(() => {
     if (!running || done || !timed) return;
     const t = setInterval(() => {
       const remain = LIMIT - (Date.now() - start.current) / 1000;
       setLeft(Math.max(0, remain));
-      if (remain <= 0) { setTimedOut(true); finish(pat, ds, true); }
+      if (remain <= 0) finish(null, true);
     }, 100);
     return () => clearInterval(t);
-  }); // re-bound each render so finish sees fresh state
+  });
 
-  const finish = (p: PatternId | null, d: string | null, timeout = false) => {
-    if (done || !ex) return;
-    setDone(true);
-    const pr = p === ex.answerPattern, dr = d === ex.answerDS;
-    const secs = (Date.now() - start.current) / 1000;
-    const quality: 0 | 1 | 2 | 3 = pr && dr ? (timed && secs < 8 ? 3 : 2) : pr ? 1 : 0;
-    const tags = [...(timeout ? ['timeout'] : []), ...(!pr ? ['pattern-miss'] : []), ...(!dr ? ['ds-miss'] : [])];
-    onResult(ex.id, quality, tags);
-    setScore((s) => ({ right: s.right + (pr && dr ? 1 : 0), total: s.total + 1 }));
-  };
-
-  const choosePat = (p: PatternId) => { if (done) return; setPat(p); if (ds) finish(p, ds); };
-  const chooseDs = (d: string) => { if (done) return; setDs(d); if (pat) finish(pat, d); };
   const next = () => setIdx((i) => i + 1);
-
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (!running) { if (e.key === 'Enter') { e.preventDefault(); setRunning(true); } return; }
       if (done) { if (e.key === 'Enter') { e.preventDefault(); next(); } return; }
       const n = Number(e.key);
-      if (n >= 1 && n <= 4) {
-        if (!pat) choosePat(patOpts[n - 1]);
-        else chooseDs(dsOpts[n - 1]);
-      }
+      if (n >= 1 && n <= options.length) finish(options[n - 1]);
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
@@ -90,125 +75,109 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
     return (
       <Card className="mx-auto max-w-xl p-8 text-center">
         <Timer className="mx-auto mb-3 text-violet-400" size={28} />
-        <h2 className="text-lg font-semibold text-zinc-100">Pattern Recognizer</h2>
-        <p className="mt-2 text-sm text-zinc-400">
-          Read the problem, name the pattern, then the main Python data structure. When you miss, you get a full
-          explanation of the clue you should have spotted and why your pick doesn't fit.
+        <h2 className="text-lg font-semibold text-zinc-100">Pattern finder</h2>
+        <p className="mt-2 text-zinc-400">
+          You get a real interview problem with an example and constraints. Pick the pattern that gives the most
+          efficient solution. Every answer comes with the clue to spot, the brute force, the optimal idea, and why
+          the tempting wrong choices fail.
         </p>
-        <p className="mt-2 text-xs text-zinc-500">{queue.length} problems in this set · keys <Kbd>1</Kbd>–<Kbd>4</Kbd></p>
+        <p className="mt-2 text-sm text-zinc-500">{queue.length} problems unlocked · keys <Kbd>1</Kbd>–<Kbd>4</Kbd></p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <Button onClick={() => { setTimed(false); setRunning(true); }}><Play size={15} />Practice, no timer <Kbd>Enter</Kbd></Button>
-          <Button variant="subtle" onClick={() => { setTimed(true); setRunning(true); }}><Timer size={15} />Speed round, {LIMIT}s each</Button>
+          <Button variant="subtle" onClick={() => { setTimed(true); setRunning(true); }}><Timer size={15} />Interview pace, {LIMIT}s each</Button>
         </div>
-        <p className="mt-3 text-xs text-zinc-500">New to patterns? Start untimed. Switch to speed rounds once you get most right.</p>
       </Card>
     );
   }
 
-  const optCls = (isPicked: boolean, isAns: boolean) =>
-    done
-      ? isAns ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200' : isPicked ? 'border-rose-500/60 bg-rose-500/10 text-rose-200' : 'border-zinc-800 text-zinc-500'
-      : isPicked ? 'border-violet-500 bg-violet-500/10 text-zinc-100' : 'border-zinc-800 text-zinc-300 hover:border-zinc-600';
+  const right = pick === ex.answer;
+  const ans = FINDER_BY_ID[ex.answer];
+  const picked = pick ? FINDER_BY_ID[pick] : null;
+  const lesson = ans.lesson ? LESSON_BY_ID[ans.lesson] : undefined;
+  const optCls = (id: string) =>
+    !done ? 'border-zinc-800 text-zinc-200 hover:border-violet-500'
+      : id === ex.answer ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+      : id === pick ? 'border-rose-500/60 bg-rose-500/10 text-rose-200' : 'border-zinc-800 text-zinc-500';
 
-  const pct = left / LIMIT;
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-3 flex items-center justify-between text-xs text-zinc-500">
+      <div className="mb-3 flex items-center justify-between text-sm text-zinc-500">
         <span className="tnum">Problem {(idx % queue.length) + 1} of {queue.length}</span>
         <span className="tnum">{score.right} of {score.total} right this session</span>
       </div>
-      <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-        <div className={`h-full transition-[width] duration-100 ${!timed ? 'bg-transparent' : pct > 0.5 ? 'bg-emerald-500' : pct > 0.2 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${(done ? 0 : pct) * 100}%` }} />
-      </div>
+      {timed && (
+        <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+          <div className={`h-full transition-[width] duration-100 ${left / LIMIT > 0.5 ? 'bg-emerald-500' : left / LIMIT > 0.2 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${(done ? 0 : left / LIMIT) * 100}%` }} />
+        </div>
+      )}
 
       <Card className="p-6">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <DiffTag d={ex.difficulty} />
           <CompanyTags ids={ex.companies} />
-          {!done && timed && <span className="ml-auto font-mono text-sm text-zinc-300">{left.toFixed(1)}s</span>}
+          {!done && timed && <span className="ml-auto font-mono text-sm text-zinc-300">{left.toFixed(0)}s</span>}
         </div>
-        <p className="text-xl leading-snug text-zinc-100">{ex.statement}</p>
-        <p className="mt-2 font-mono text-xs text-sky-300">{ex.constraints}</p>
+        <h3 className="text-xl font-semibold text-zinc-100">{ex.title}</h3>
+        <p className="mt-2 text-[17px] leading-relaxed text-zinc-200">{ex.statement}</p>
+        <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-300"><span className="text-zinc-500">Example: </span>{ex.example}</div>
+        <p className="mt-2 font-mono text-sm text-sky-300">Constraints: {ex.constraints}</p>
       </Card>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div>
-          <h4 className={`mb-2 font-semibold ${!pat && !done ? 'text-violet-300' : 'text-zinc-500'}`}>First, the pattern</h4>
-          <div className="space-y-2">
-            {patOpts.map((p, i) => (
-              <button key={p} onClick={() => choosePat(p)} className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${optCls(pat === p, done && p === ex.answerPattern)}`}>
-                <Kbd>{i + 1}</Kbd>{PATTERN_NAME[p]}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <h4 className={`mb-2 font-semibold ${pat && !done ? 'text-violet-300' : 'text-zinc-500'}`}>Then, the main data structure</h4>
-          <div className="space-y-2">
-            {dsOpts.map((d, i) => (
-              <button key={d} onClick={() => chooseDs(d)} className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left font-mono text-sm transition-colors ${optCls(ds === d, done && d === ex.answerDS)}`}>
-                <Kbd>{i + 1}</Kbd>{d}
-              </button>
-            ))}
-          </div>
-        </div>
+      <h4 className="mb-2 mt-5 text-lg font-semibold text-zinc-100">Which pattern gives the most efficient solution?</h4>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((id, i) => (
+          <button key={id} onClick={() => finish(id)} disabled={done}
+            className={`flex items-center gap-3 rounded-lg border px-3 py-3 text-left text-[15px] transition-colors ${optCls(id)}`}>
+            <Kbd>{i + 1}</Kbd>{FINDER_BY_ID[id].name}
+          </button>
+        ))}
       </div>
 
-      {done && <Explain ex={ex} pat={pat} ds={ds} timedOut={timedOut} showCode={showCode} setShowCode={setShowCode} onLearn={onLearn} next={next} />}
+      {done && (
+        <Card className="mt-5 p-5">
+          <p className="mb-4 flex flex-wrap items-center gap-2 font-medium">
+            {right ? <><CheckCircle2 size={18} className="text-emerald-400" /><span className="text-emerald-300">Right.</span></>
+              : <><XCircle size={18} className="text-rose-400" /><span className="text-rose-300">{timedOut ? 'Time’s up.' : 'Not this one.'}</span></>}
+            <span className="text-zinc-300">The best fit is <span className="hl font-semibold text-zinc-100">{ans.name}</span>.</span>
+          </p>
+          <div className="space-y-4 text-[15px] leading-relaxed">
+            <Sec t="The clue in the problem">{ex.clue}</Sec>
+            <Sec t="The obvious approach">{ex.brute}</Sec>
+            <Sec t={`How ${ans.name.toLowerCase()} solves it`}>{ex.insight} <span className="whitespace-nowrap font-mono text-sm text-sky-300">{ex.optimal}</span></Sec>
+            {picked && !right && (
+              <Sec t={`Why not ${picked.name.toLowerCase()}?`} warn>
+                {ex.whyNot?.[picked.id] ?? `${picked.name} fits when ${picked.fitsWhen}. This problem doesn't have that shape, so it would be slower than needed or give wrong answers.`}
+              </Sec>
+            )}
+            {ex.followUp && <Sec t="What interviewers ask next">{ex.followUp}</Sec>}
+          </div>
+          {lesson && !right && <Template code={lesson.template} name={lesson.name} />}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button onClick={next}>Next<Kbd>Enter</Kbd></Button>
+            {lesson && onLearn && <Button variant="subtle" onClick={() => onLearn(lesson.id)}><BookOpen size={15} />{right ? 'Review' : 'Learn'} {lesson.name}</Button>}
+            {ex.nc && <a href={`https://neetcode.io/problems/${ex.nc}`} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium text-violet-300 hover:underline">Solve it on NeetCode</a>}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
 
-function Explain({ ex, pat, ds, timedOut, showCode, setShowCode, onLearn, next }: {
-  ex: PatternExercise; pat: PatternId | null; ds: string | null; timedOut: boolean;
-  showCode: boolean; setShowCode: (b: boolean) => void; onLearn?: (id: string) => void; next: () => void;
-}) {
-  const pr = pat === ex.answerPattern, dr = ds === ex.answerDS;
-  const lessonId = LESSON_FOR_PATTERN[ex.answerPattern];
-  const lesson = lessonId ? LESSON_BY_ID[lessonId] : undefined;
-  const both = pr && dr;
+function Sec({ t, children, warn }: { t: string; children: React.ReactNode; warn?: boolean }) {
   return (
-    <Card className="mt-4 p-5">
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm font-medium">
-        {both
-          ? <><CheckCircle2 size={16} className="text-emerald-400" /><span className="text-emerald-300">Both right</span></>
-          : pr ? <><CheckCircle2 size={16} className="text-amber-400" /><span className="text-amber-300">Pattern right, data structure off</span></>
-          : <><XCircle size={16} className="text-rose-400" /><span className="text-rose-300">{timedOut ? 'Time\u2019s up' : 'Not quite'}</span></>}
-        <span className="text-zinc-400">Answer: <span className="hl text-zinc-100">{PATTERN_NAME[ex.answerPattern]}</span> with <span className="hl font-mono text-zinc-100">{ex.answerDS}</span></span>
-      </div>
-      <p className="leading-relaxed text-zinc-200">{ex.why}</p>
+    <div className={warn ? 'rounded-md border border-rose-500/30 bg-rose-500/5 px-4 py-3' : ''}>
+      <h5 className="font-semibold text-zinc-100">{t}</h5>
+      <p className="text-zinc-300">{children}</p>
+    </div>
+  );
+}
 
-      {!both && (
-        <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4 text-[15px] leading-relaxed">
-          <div>
-            <h4 className="font-semibold text-zinc-100">The clue you should look for</h4>
-            <p className="text-zinc-300">{PATTERN_NAME[ex.answerPattern]} fits when {FITS_WHEN[ex.answerPattern]}. Look at the constraint <span className="font-mono text-sky-300">{ex.constraints}</span>: the target complexity rules out the brute force and points here.</p>
-            {lesson && <ul className="mt-2 list-disc space-y-0.5 pl-5 text-zinc-400 marker:text-zinc-600">{lesson.signals.slice(0, 3).map((x) => <li key={x}>{x}</li>)}</ul>}
-          </div>
-          {pat && !pr && (
-            <div>
-              <h4 className="font-semibold text-zinc-100">Why not {PATTERN_NAME[pat]}?</h4>
-              <p className="text-zinc-300">{PATTERN_NAME[pat]} is for when {FITS_WHEN[pat]}. This problem doesn't have that shape, so it would either be slower than the target or give wrong answers.</p>
-            </div>
-          )}
-          {!dr && (
-            <div>
-              <h4 className="font-semibold text-zinc-100">About the data structure</h4>
-              <p className="text-zinc-300">{ds ? <>You picked <span className="font-mono">{ds}</span>, which is for {DS_FITS[ds] ?? 'a different job'}. </> : null}Here the work is done by <span className="font-mono">{ex.answerDS}</span>, used for {DS_FITS[ex.answerDS] ?? 'this job'}.</p>
-            </div>
-          )}
-          {lesson && (
-            <div>
-              <button onClick={() => setShowCode(!showCode)} className="text-sm font-medium text-violet-300 hover:underline">{showCode ? 'Hide' : 'Show'} the {lesson.name.toLowerCase()} template</button>
-              {showCode && <pre className="mt-2 overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 font-mono text-[13px] leading-relaxed">{lesson.template.split('\n').slice(0, 14).map((line, i) => <div key={i}>{line ? highlight(line, `x${i}`) : '\u00a0'}</div>)}</pre>}
-            </div>
-          )}
-        </div>
-      )}
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={next}>Next<Kbd>Enter</Kbd></Button>
-        {!both && lesson && onLearn && <Button variant="subtle" onClick={() => onLearn(lesson.id)}><BookOpen size={15} />Learn {lesson.name}</Button>}
-      </div>
-    </Card>
+function Template({ code, name }: { code: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4">
+      <button onClick={() => setOpen(!open)} className="text-sm font-medium text-violet-300 hover:underline">{open ? 'Hide' : 'Show'} the {name.toLowerCase()} template</button>
+      {open && <pre className="mt-2 overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 font-mono text-[13px] leading-relaxed">{code.split('\n').map((line, i) => <div key={i}>{line ? highlight(line, `t${i}`) : ' '}</div>)}</pre>}
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { PatternId } from '../types';
+import { EXTRA_CHECKS } from './lessonChecks';
 
 /**
  * Pattern lessons. The 15 patterns follow the widely shared "LeetCode was
@@ -616,6 +617,8 @@ def lcs(a, b):                       # 2D: prefixes of two strings
     ],
   },
 ];
+
+for (const l of LESSONS) l.check.push(...(EXTRA_CHECKS[l.id] ?? []));
 
 export const LESSON_BY_ID = Object.fromEntries(LESSONS.map((l) => [l.id, l])) as Record<string, Lesson>;
 

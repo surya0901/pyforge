@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Briefcase, Bug, Calculator, Compass, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
+import { BarChart3, BookOpen, Briefcase, Bug, Calculator, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BugHunter from './components/BugHunter';
 import Coach from './components/Coach';
@@ -9,23 +9,25 @@ import Flashcards from './components/Flashcards';
 import MentalMath from './components/MentalMath';
 import PatternDrill from './components/PatternDrill';
 import Patterns from './components/Patterns';
+import Roadmap from './components/Roadmap';
+import { getUnlockAll, isUnlocked, roadmapStatus, saveUnlockAll, solvedDrillIds } from './lib/roadmap';
 import { ReferenceContent, ReferenceDrawer } from './components/Reference';
 import StudyPath from './components/StudyPath';
 import SyntaxDrill from './components/SyntaxDrill';
 import { getDB, pullProgress, pushProgress, watchNeetcode, type NeetcodeStatus } from './lib/cloud';
-import { Empty, Kbd, PageTitle } from './components/ui';
-import { BUGS, PATTERN_DRILLS, SYNTAX } from './data';
+import { Kbd, PageTitle } from './components/ui';
+import { ALL, BUGS, PATTERN_DRILLS, SYNTAX } from './data';
 import { COMPANIES, PATTERNS } from './data/meta';
 import { buildQueue, emptyProgress, filterItems, getLocal, loadProgress, logMath, review, saveProgress, setLocal, streak, updateLesson } from './lib/storage';
 import type { CompanyId, LessonState, Mode, PatternId, Progress } from './types';
 
 type NavItem = { id: Mode; label: string; icon: typeof Keyboard; key: string };
 const GROUPS: { name: string; items: NavItem[] }[] = [
-  { name: '', items: [{ id: 'coach', label: 'Today', icon: Compass, key: 't' }, { id: 'path', label: 'Study path', icon: MapIcon, key: 'n' }, { id: 'learn', label: 'Patterns', icon: GraduationCap, key: 'l' }] },
+  { name: '', items: [{ id: 'coach', label: 'Today', icon: Compass, key: 't' }, { id: 'roadmap', label: 'Roadmap', icon: GitBranch, key: 'o' }, { id: 'path', label: 'Study path', icon: MapIcon, key: 'n' }, { id: 'learn', label: 'Patterns', icon: GraduationCap, key: 'l' }] },
   { name: 'Coding drills', items: [
     { id: 'syntax', label: 'Syntax recall', icon: Keyboard, key: 's' },
     { id: 'bug', label: 'Bug hunter', icon: Bug, key: 'b' },
-    { id: 'pattern', label: 'Pattern speed', icon: Target, key: 'p' },
+    { id: 'pattern', label: 'Pattern finder', icon: Target, key: 'p' },
     { id: 'math', label: 'Mental math', icon: Calculator, key: 'm' },
   ] },
   { name: 'Interview prep', items: [
@@ -43,7 +45,7 @@ const ALL_NAV = GROUPS.flatMap((g) => g.items);
 const DRILL_INTRO: Partial<Record<Mode, { title: string; sub: string }>> = {
   syntax: { title: 'Syntax recall', sub: 'You know the algorithm. Type the exact Python. Each blank says what it should do, and wrong answers tell you why.' },
   bug: { title: 'Bug hunter', sub: 'Read code like a reviewer. Flag every broken line, then pick the fix. This is the skill AI-assisted and code-comprehension rounds test.' },
-  pattern: { title: 'Pattern speed', sub: 'Name the approach and the data structure from the problem and constraints. Practice untimed first, then race the clock.' },
+  pattern: { title: 'Pattern finder', sub: 'Read a real interview problem and pick the pattern that gives the most efficient solution. Every answer explains the clue, the brute force and the optimal idea.' },
 };
 
 const THEME_KEY = 'pyforge.theme';
@@ -62,6 +64,8 @@ export default function App() {
   const [ncCloud, setNcCloud] = useState<NeetcodeStatus | null>(null);
   const [cloud, setCloud] = useState(false);
   const [ncLocal, setNcLocal] = useState<string[]>(() => getLocal('pyforge.neetcode.local', ['duplicate-integer', 'is-anagram', 'two-integer-sum']));
+  const [unlockAll, setUnlockAllState] = useState<boolean>(getUnlockAll);
+  const setUnlockAll = (v: boolean) => { setUnlockAllState(v); saveUnlockAll(v); setSession((s) => s + 1); };
   const [lessonSel, setLessonSel] = useState<string | undefined>();
   const [ncSyncedAt, setNcSyncedAt] = useState<string | null>(() => getLocal('pyforge.neetcode.syncedAt', null));
   const [pace, setPaceState] = useState<number>(() => getLocal('pyforge.pace', 2));
@@ -116,14 +120,23 @@ export default function App() {
   const learn = (id?: string) => { setLessonSel(id); setMode('learn'); setSession((s) => s + 1); };
   const onMath = useCallback((score: number) => setProgress((p) => logMath(p, score)), []);
 
+  // Drills unlock as you learn patterns and solve NeetCode problems (see the Roadmap).
+  const road = useMemo(() => roadmapStatus(progress, solved), [progress, solved]);
+  const viaSolved = useMemo(() => solvedDrillIds(solved, ALL), [solved]);
+  const unlocked = useCallback(<T extends { id: string; pattern: PatternId; kind: string }>(xs: T[]) =>
+    unlockAll ? xs : xs.filter((e) => e.id === focus || isUnlocked(e as never, road, viaSolved)), [unlockAll, road, viaSolved, focus]);
   const queues = useMemo(() => {
     const front = <T extends { id: string }>(q: T[]) => (focus ? [...q.filter((e) => e.id === focus), ...q.filter((e) => e.id !== focus)] : q);
     return {
-      syntax: front(buildQueue(filterItems(SYNTAX, pattern, company), progress)),
-      bug: front(buildQueue(filterItems(BUGS, pattern, company), progress)),
-      pattern: front(buildQueue(filterItems(PATTERN_DRILLS, pattern, company), progress)),
+      syntax: front(buildQueue(unlocked(filterItems(SYNTAX, pattern, company)), progress)),
+      bug: front(buildQueue(unlocked(filterItems(BUGS, pattern, company)), progress)),
+      pattern: front(buildQueue(unlocked(filterItems(PATTERN_DRILLS, pattern, company)), progress)),
     };
-  }, [pattern, company, session, mode, focus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pattern, company, session, mode, focus, unlockAll]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lockedCount = (m: 'syntax' | 'bug' | 'pattern') => {
+    const src = m === 'syntax' ? SYNTAX : m === 'bug' ? BUGS : PATTERN_DRILLS;
+    return filterItems(src as never[], pattern, company).length - queues[m].length;
+  };
 
   const open = (m: Mode, opts: { deck?: string; company?: CompanyId | 'all'; pattern?: PatternId | 'all'; focus?: string } = {}) => {
     setFocus(opts.focus);
@@ -169,6 +182,7 @@ export default function App() {
     switch (mode) {
       case 'coach': return <Coach progress={progress} open={open} solved={solved} onLearn={learn} />;
       case 'path': return <StudyPath progress={progress} solved={solved} syncedAt={ncCloud?.updatedAt ?? ncSyncedAt} cloud={cloud && !!ncCloud} pace={pace} setPace={setPace} toggleLocal={toggleLocal} open={open} />;
+      case 'roadmap': return <Roadmap progress={progress} solved={solved} unlockAll={unlockAll} setUnlockAll={setUnlockAll} open={open} onLearn={learn} />;
       case 'learn': return <Patterns key={`${lessonSel}-${session}`} progress={progress} solved={solved} initial={lessonSel} onLesson={onLesson} open={open} />;
       case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><Dashboard progress={progress} go={go} reset={() => setProgress(emptyProgress())} /></>;
       case 'companies': return <Companies key={company} progress={progress} solved={solved} initial={company} open={open} onLearn={learn} />;
@@ -182,7 +196,22 @@ export default function App() {
         return (
           <>
             <PageTitle sub={intro.sub}>{intro.title}</PageTitle>
-            {!q.length ? <Empty text="Nothing matches these filters. Try all companies or all patterns." />
+            {!unlockAll && lockedCount(mode as 'syntax') > 0 && (
+              <p className="-mt-2 mb-5 text-sm text-zinc-500">
+                {q.length} unlocked, {lockedCount(mode as 'syntax')} still locked behind patterns you haven't reached.{' '}
+                <button onClick={() => nav('roadmap')} className="text-violet-300 hover:underline">See what unlocks them</button>
+              </p>
+            )}
+            {!q.length ? (
+              <div className="rounded-lg border border-dashed border-zinc-700 p-8 text-center">
+                <p className="text-zinc-200">Nothing unlocked here yet{pattern !== 'all' || company !== 'all' ? ' for these filters' : ''}.</p>
+                <p className="mt-1 text-sm text-zinc-500">Read a pattern lesson or solve a NeetCode problem to unlock its drills.</p>
+                <div className="mt-4 flex justify-center gap-2">
+                  <button onClick={() => nav('roadmap')} className="rounded-md bg-violet-600 px-3 py-2 text-sm font-medium text-white">Open the roadmap</button>
+                  <button onClick={() => setUnlockAll(true)} className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300">Unlock everything</button>
+                </div>
+              </div>
+            )
               : mode === 'syntax' ? <SyntaxDrill key={filterKey} queue={queues.syntax} onResult={onResult} />
               : mode === 'bug' ? <BugHunter key={filterKey} queue={queues.bug} onResult={onResult} />
               : <PatternDrill key={filterKey} queue={queues.pattern} onResult={onResult} onLearn={learn} />}
