@@ -45,6 +45,8 @@ npx vite build -c vite.single.config.ts   # optional: one self-contained HTML fi
 
 ## Deploy to GitHub Pages (3 steps)
 
+> This repo is private. On a free GitHub plan, Pages only works for public repos, so the workflow is manual for now. Make the repo public or upgrade, then follow the steps below and restore the `push` trigger in `deploy.yml`.
+
 1. **Create a repo and push** this folder to the `main` branch:
    ```bash
    git init && git add . && git commit -m "PyForge"

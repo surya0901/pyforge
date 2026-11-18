@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
+# Manual for now: GitHub Pages on a private repo needs a paid plan.
+# To deploy automatically, make the repo public (or upgrade), enable
+# Settings > Pages > Source: GitHub Actions, then add back:
+#   push:
+#     branches: [main]
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
