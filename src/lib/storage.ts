@@ -10,7 +10,7 @@ export function loadProgress(): Progress {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyProgress();
     const p = JSON.parse(raw) as Partial<Progress>;
-    return { cards: p.cards ?? {}, days: p.days ?? [], mistakes: p.mistakes ?? {}, math: p.math ?? [] };
+    return { cards: p.cards ?? {}, days: p.days ?? [], mistakes: p.mistakes ?? {}, math: p.math ?? [], savedAt: p.savedAt ?? 0 };
   } catch {
     return emptyProgress();
   }
@@ -52,7 +52,7 @@ export function review(p: Progress, id: string, quality: 0 | 1 | 2 | 3, tags: st
   for (const t of tags) mistakes[t] = (mistakes[t] ?? 0) + 1;
   const d = today();
   const days = p.days.includes(d) ? p.days : [...p.days, d].slice(-400);
-  return { ...p, cards: { ...p.cards, [id]: c }, days, mistakes };
+  return { ...p, cards: { ...p.cards, [id]: c }, days, mistakes, savedAt: Date.now() };
 }
 
 /** 0..1 mastery for one card. */
@@ -106,7 +106,7 @@ export function averageMastery(items: Exercise[], p: Progress): number {
 export function logMath(p: Progress, score: number): Progress {
   const d = today();
   const days = p.days.includes(d) ? p.days : [...p.days, d].slice(-400);
-  return { ...p, days, math: [...p.math, { at: Date.now(), score }].slice(-200) };
+  return { ...p, days, math: [...p.math, { at: Date.now(), score }].slice(-200), savedAt: Date.now() };
 }
 
 /** Small typed localStorage helpers for side data (stories, notes, settings). */

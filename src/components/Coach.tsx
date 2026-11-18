@@ -1,4 +1,4 @@
-import { Clock, Copy, Sparkles } from 'lucide-react';
+import { Clock, Copy, ExternalLink, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { PLAYBOOKS } from '../data/companies';
 import { COMPANIES, COMPANY_NAME } from '../data/meta';
@@ -6,9 +6,12 @@ import { areaStats, buildPlan, claudePrompt, readiness } from '../lib/coach';
 import { getLocal, setLocal, streak } from '../lib/storage';
 import type { CompanyId, Mode, Progress } from '../types';
 import { Bar, Button, Card, SectionTitle } from './ui';
+import { CoachPanel } from './AI';
+import { nextProblems } from './StudyPath';
 
 interface Props {
   progress: Progress;
+  solved: Set<string>;
   open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all' }) => void;
 }
 
@@ -19,7 +22,8 @@ function greeting() {
   return h < 5 ? 'Late session' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-export default function Coach({ progress, open }: Props) {
+export default function Coach({ progress, open, solved }: Props) {
+  const nextNc = nextProblems(solved, 1)[0];
   const [targets, setTargets] = useState<CompanyId[]>(() => getLocal(TARGET_KEY, [] as CompanyId[]));
   const [copied, setCopied] = useState(false);
   useEffect(() => setLocal(TARGET_KEY, targets), [targets]);
@@ -48,7 +52,17 @@ export default function Coach({ progress, open }: Props) {
         <h1 className="mt-1 max-w-[22ch] text-[42px] font-bold leading-[1.05] tracking-[-0.025em] text-zinc-100">
           <span className="hl">{totalMin} minutes</span> is enough to move the needle today.
         </h1>
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
+        {nextNc && (
+          <a href={nextNc.url} target="_blank" rel="noreferrer"
+            className="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-violet-500 bg-zinc-900 p-4 transition-colors hover:bg-zinc-950">
+            <div className="flex-1">
+              <div className="text-sm text-zinc-500">First, solve on NeetCode · {nextNc.section} · {solved.size}/150 done</div>
+              <div className="text-lg font-semibold text-zinc-100">{nextNc.name} <span className="text-sm font-normal text-zinc-500">{nextNc.difficulty}</span></div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 font-medium text-violet-300">Open <ExternalLink size={14} /></span>
+          </a>
+        )}
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
           {plan.map((p, i) => (
             <button key={i} onClick={() => open(p.mode, { deck: p.deck })}
               className="group rounded-md border border-zinc-800 bg-zinc-900 p-4 text-left transition-colors hover:border-violet-500">
@@ -123,6 +137,8 @@ export default function Coach({ progress, open }: Props) {
               })}
             </div>
           </section>
+
+          <section><CoachPanel progress={progress} solved={solved} targets={targets} /></section>
 
           {/* Deeper AI review */}
           <section>

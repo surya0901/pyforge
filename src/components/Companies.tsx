@@ -1,6 +1,9 @@
-import { ExternalLink } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Circle, ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AREA_NAME, PLAYBOOKS, RESOURCES } from '../data/companies';
+import { BANKS, GENERAL_BEHAVIORAL } from '../data/companyBank';
+import { NEETCODE } from '../data/neetcode';
+import { BehavioralPractice } from './AI';
 import { COMPANIES, COMPANY_NAME } from '../data/meta';
 import { AREA_DECK, AREA_MODE, areaStats, readiness } from '../lib/coach';
 import type { CompanyId, Mode, Progress } from '../types';
@@ -8,16 +11,22 @@ import { Bar, Button, Card, PageTitle, SectionTitle } from './ui';
 
 interface Props {
   progress: Progress;
+  solved: Set<string>;
   initial?: CompanyId | 'all';
   open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all' }) => void;
 }
 
-export default function Companies({ progress, initial, open }: Props) {
+export default function Companies({ progress, solved, initial, open }: Props) {
   const [id, setId] = useState<CompanyId>(initial && initial !== 'all' ? initial : 'citadel');
   const pb = PLAYBOOKS.find((p) => p.id === id)!;
   const stats = useMemo(() => areaStats(progress), [progress]);
   const r = readiness(id, stats);
   const tier = COMPANIES.find((c) => c.id === id)!.tier;
+  const bank = BANKS.find((b) => b.id === id)!;
+  const [tab, setTab] = useState<'playbook' | 'coding' | 'behavioral'>('playbook');
+  const [practice, setPractice] = useState<string | null>(null);
+  const ncBySlug = Object.fromEntries(NEETCODE.map((p) => [p.slug, p]));
+  const codingDone = bank.coding.filter((q) => q.nc && solved.has(q.nc)).length;
 
   return (
     <div>
@@ -38,7 +47,73 @@ export default function Companies({ progress, initial, open }: Props) {
             <p className="text-sm text-zinc-500">{tier === 'quant' ? 'Quant trading firm' : 'Big tech and frontier AI'}</p>
             <h2 className="mt-1 text-[32px] font-bold leading-tight tracking-[-0.02em] text-zinc-100">{COMPANY_NAME[id]}</h2>
             <p className="mt-2 max-w-[60ch] text-lg leading-relaxed text-zinc-300">{pb.tagline}</p>
+            <div className="mt-5 inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-0.5">
+              {([['playbook', 'Playbook'], ['coding', `Coding questions (${codingDone}/${bank.coding.filter((q) => q.nc).length} on NeetCode)`], ['behavioral', 'Behavioral']] as const).map(([k, label]) => (
+                <button key={k} onClick={() => setTab(k)} className={`rounded px-3 py-1.5 text-sm transition-colors ${tab === k ? 'bg-zinc-950 font-semibold text-zinc-100 shadow-[inset_0_-2px_0_rgb(var(--hl-500))]' : 'text-zinc-400 hover:text-zinc-100'}`}>{label}</button>
+              ))}
+            </div>
           </div>
+
+          {tab === 'coding' && (
+            <>
+              <section>
+                <p className="mb-4 max-w-[65ch] leading-relaxed text-zinc-300">{bank.shape}</p>
+                <SectionTitle>Reported and closely matching problems</SectionTitle>
+                <ul className="divide-y divide-zinc-800 rounded-md border border-zinc-800 bg-zinc-900">
+                  {bank.coding.map((q) => {
+                    const nc = q.nc ? ncBySlug[q.nc] : undefined;
+                    const done = q.nc ? solved.has(q.nc) : false;
+                    return (
+                      <li key={q.name} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+                        {nc ? (done ? <CheckCircle2 size={18} className="text-emerald-400" /> : <Circle size={18} className="text-zinc-600" />) : <span className="w-[18px]" />}
+                        <a href={nc ? nc.url : q.url} target="_blank" rel="noreferrer" className="font-medium text-zinc-100 hover:underline">{q.name}</a>
+                        <span className="text-xs text-zinc-500">{nc ? `NeetCode · ${nc.difficulty}` : 'LeetCode'}</span>
+                        <span className="w-full pl-[30px] text-sm text-zinc-400 sm:w-auto sm:flex-1 sm:pl-0 sm:text-right">{q.why}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+              {bank.build && (
+                <section>
+                  <SectionTitle>Build-it and systems questions</SectionTitle>
+                  <ul className="space-y-2">
+                    {bank.build.map((q) => <li key={q.name} className="border-l-2 border-amber-500 pl-3"><div className="text-zinc-100">{q.name}</div><div className="text-sm text-zinc-500">{q.why}</div></li>)}
+                  </ul>
+                </section>
+              )}
+              <section>
+                <SectionTitle>Where this comes from</SectionTitle>
+                <ul className="space-y-1">{bank.sources.map((l) => <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-violet-300 hover:underline">{l.label}<ExternalLink size={12} /></a></li>)}</ul>
+                <p className="mt-2 text-xs text-zinc-500">Reported by candidates in public write-ups. Companies don't publish question lists, and loops change.</p>
+              </section>
+            </>
+          )}
+
+          {tab === 'behavioral' && (
+            <section>
+              <p className="mb-4 max-w-[65ch] text-zinc-300">Pick a question, answer it like you would out loud, and Claude grades it against what {COMPANY_NAME[id]} looks for. Questions marked "reported" came up in candidate write-ups.</p>
+              <div className="space-y-2">
+                {[...bank.behavioral, ...GENERAL_BEHAVIORAL].map((b) => {
+                  const isOpen = practice === b.q;
+                  return (
+                    <div key={b.q} className="rounded-md border border-zinc-800 bg-zinc-900">
+                      <button onClick={() => setPractice(isOpen ? null : b.q)} className="flex w-full items-start gap-3 px-4 py-3 text-left">
+                        <div className="flex-1">
+                          <div className="text-zinc-100">{b.q}</div>
+                          <div className="mt-0.5 text-sm text-zinc-500">{b.tests}{b.reported ? ' · reported' : ''}</div>
+                        </div>
+                        <ChevronDown size={16} className={`mt-1 shrink-0 text-zinc-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isOpen && <div className="border-t border-zinc-800 p-4"><BehavioralPractice question={b.q} company={id} /></div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {tab === 'playbook' && <>
 
           <section>
             <SectionTitle>The usual loop</SectionTitle>
@@ -79,6 +154,7 @@ export default function Companies({ progress, initial, open }: Props) {
               ))}
             </ul>
           </section>
+          </>}
         </div>
 
         <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">

@@ -73,7 +73,7 @@ export interface PatternExercise extends Base {
 }
 
 export type Exercise = SyntaxExercise | BugExercise | PatternExercise;
-export type Mode = 'coach' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
+export type Mode = 'coach' | 'path' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
 
 export interface CardState {
   reps: number;
@@ -91,4 +91,5 @@ export interface Progress {
   days: string[]; // YYYY-MM-DD dates with practice
   mistakes: Record<string, number>; // diagnostic tag -> count
   math: { at: number; score: number }[]; // mental math round results
+  savedAt?: number; // last local change, used to merge with the cloud copy
 }
