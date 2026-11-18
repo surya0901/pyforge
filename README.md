@@ -1,10 +1,16 @@
 # pyforge: a new grad interview gym
 
-A static, zero-backend trainer for the part of coding interviews that breaks under pressure: **exact Python syntax**, **pattern recognition speed**, and **reading code for subtle bugs**. Built for Citadel, HRT, Jane Street, Meta, Google, OpenAI, Nvidia, Amazon, Microsoft, Apple and Netflix prep.
+**Live: https://surya0901.github.io/pyforge/**
+
+A static, zero-backend trainer for the part of coding interviews that breaks under pressure: **exact Python syntax**, **pattern recognition speed**, and **reading code for subtle bugs**. Built for Citadel, HRT, Jane Street, Meta, Google, OpenAI, Nvidia, Amazon, Microsoft, Apple, Netflix, Goldman Sachs and JPMorgan Chase prep.
 
 React + Vite + TypeScript + Tailwind + Lucide. No API keys, no server. Progress, streaks, spaced-repetition schedules and mistake analytics live in `localStorage`.
 
 ## What's inside
+
+**Patterns.** Lessons for the 15 core coding interview patterns plus a hashing foundation: how to spot each one, the idea in plain words, a worked walkthrough, a Python template, common mistakes, a quick check with explanations for every wrong option, and the NeetCode 150 problems that use it. Coverage is tracked per pattern and per company, including which companies share the same problems.
+
+**NeetCode sync.** Drag the "pyforge sync" bookmark from the Study path page to your bookmarks bar, click it on the NeetCode 150 page, and every solved problem is ticked here.
 
 A study app built for short sessions: open it on a break, do what the **Today** page suggests, close it.
 

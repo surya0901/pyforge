@@ -8,7 +8,7 @@ export const SYNTAX: SyntaxExercise[] = [
   // ───────────── Arrays & Hashing ─────────────
   s({
     id: 'syn-two-sum', title: 'Two Sum (hash map)', pattern: 'arrays', difficulty: 'easy',
-    companies: ['google', 'amazon', 'meta', 'apple', ...QUANT],
+    companies: ['google', 'amazon', 'meta', 'apple', ...QUANT, 'goldman', 'jpmorgan'],
     prompt: 'Return indices of the two numbers that add to target in one pass.',
     code: `def two_sum(nums, target):
     seen = __0__
@@ -24,7 +24,7 @@ export const SYNTAX: SyntaxExercise[] = [
   }),
   s({
     id: 'syn-group-anagrams', title: 'Group Anagrams (defaultdict)', pattern: 'arrays', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'microsoft', 'google'],
+    companies: ['amazon', 'meta', 'microsoft', 'google', 'goldman', 'jpmorgan'],
     prompt: 'Group strings that are anagrams of each other.',
     code: `from collections import defaultdict
 
@@ -59,7 +59,7 @@ def group_anagrams(strs):
   }),
   s({
     id: 'syn-top-k-counter', title: 'Top K Frequent (Counter)', pattern: 'arrays', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'netflix', 'nvidia'],
+    companies: ['amazon', 'meta', 'netflix', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Return the k most frequent elements using the standard library.',
     code: `from collections import Counter
 
@@ -75,7 +75,7 @@ def top_k_frequent(nums, k):
   // ───────────── Two Pointers ─────────────
   s({
     id: 'syn-palindrome', title: 'Valid Palindrome', pattern: 'two-pointers', difficulty: 'easy',
-    companies: ['meta', 'microsoft', 'apple'],
+    companies: ['meta', 'microsoft', 'apple', 'goldman', 'jpmorgan'],
     prompt: 'Converging pointers from both ends.',
     code: `def is_palindrome(s):
     l, r = __0__
@@ -93,7 +93,7 @@ def top_k_frequent(nums, k):
   }),
   s({
     id: 'syn-three-sum', title: '3Sum (sort + converge)', pattern: 'two-pointers', difficulty: 'medium',
-    companies: ['meta', 'amazon', 'google', 'microsoft'],
+    companies: ['meta', 'amazon', 'google', 'microsoft', 'goldman', 'jpmorgan'],
     prompt: 'All unique triplets summing to 0.',
     code: `def three_sum(nums):
     __0__
@@ -121,7 +121,7 @@ def top_k_frequent(nums, k):
   }),
   s({
     id: 'syn-move-zeroes', title: 'Move Zeroes (partition)', pattern: 'two-pointers', difficulty: 'easy',
-    companies: ['meta', 'apple', 'microsoft'],
+    companies: ['meta', 'apple', 'microsoft', 'goldman', 'jpmorgan'],
     prompt: 'Move zeros to the end in-place, keep relative order.',
     code: `def move_zeroes(nums):
     w = 0
@@ -137,7 +137,7 @@ def top_k_frequent(nums, k):
   // ───────────── Sliding Window ─────────────
   s({
     id: 'syn-longest-substring', title: 'Longest Substring w/o Repeats', pattern: 'sliding-window', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'google', 'microsoft', 'apple'],
+    companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'goldman', 'jpmorgan'],
     prompt: 'Dynamic window backed by a set.',
     code: `def length_of_longest(s):
     window = __0__
@@ -157,7 +157,7 @@ def top_k_frequent(nums, k):
   }),
   s({
     id: 'syn-fixed-window', title: 'Max Sum of Size-K Window', pattern: 'sliding-window', difficulty: 'easy',
-    companies: ['amazon', 'nvidia', 'hrt'],
+    companies: ['amazon', 'nvidia', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'Fixed window, O(1) update per step.',
     code: `def max_sum_k(nums, k):
     cur = __0__
@@ -173,7 +173,7 @@ def top_k_frequent(nums, k):
   }),
   s({
     id: 'syn-char-replacement', title: 'Longest Repeating Char Replacement', pattern: 'sliding-window', difficulty: 'medium',
-    companies: ['google', 'amazon', 'openai'],
+    companies: ['google', 'amazon', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Window valid while (len - maxfreq) <= k.',
     code: `from collections import defaultdict
 
@@ -197,7 +197,7 @@ def character_replacement(s, k):
   // ───────────── Stack ─────────────
   s({
     id: 'syn-valid-parens', title: 'Valid Parentheses', pattern: 'stack', difficulty: 'easy',
-    companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'netflix'],
+    companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'netflix', 'goldman', 'jpmorgan'],
     prompt: 'Classic list-as-stack with a closing→opening map.',
     code: `def is_valid(s):
     pairs = {')': '(', ']': '[', '}': '{'}
@@ -217,7 +217,7 @@ def character_replacement(s, k):
   }),
   s({
     id: 'syn-daily-temps', title: 'Daily Temperatures (monotonic)', pattern: 'stack', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'citadel'],
+    companies: ['meta', 'google', 'amazon', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Monotonic decreasing stack of indices.',
     code: `def daily_temperatures(temps):
     res = __0__
@@ -235,7 +235,7 @@ def character_replacement(s, k):
   }),
   s({
     id: 'syn-rpn', title: 'Evaluate Reverse Polish Notation', pattern: 'stack', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'janestreet'],
+    companies: ['amazon', 'meta', 'janestreet', 'goldman', 'jpmorgan'],
     prompt: 'Integer division truncates toward zero.',
     code: `def eval_rpn(tokens):
     stack = []
@@ -258,7 +258,7 @@ def character_replacement(s, k):
   // ───────────── Binary Search ─────────────
   s({
     id: 'syn-binary-search', title: 'Classic Binary Search', pattern: 'binary-search', difficulty: 'easy',
-    companies: ['google', 'microsoft', 'apple', 'nvidia'],
+    companies: ['google', 'microsoft', 'apple', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Closed interval [lo, hi].',
     code: `def search(nums, target):
     lo, hi = 0, __0__
@@ -293,7 +293,7 @@ def count_in_range(arr, lo, hi):
   }),
   s({
     id: 'syn-koko', title: 'Koko Eating Bananas (answer space)', pattern: 'binary-search', difficulty: 'medium',
-    companies: ['google', 'amazon', 'meta', 'openai'],
+    companies: ['google', 'amazon', 'meta', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Find the minimum speed that finishes within h hours.',
     code: `def min_eating_speed(piles, h):
     lo, hi = 1, __0__
@@ -315,7 +315,7 @@ def count_in_range(arr, lo, hi):
   // ───────────── Linked Lists ─────────────
   s({
     id: 'syn-reverse-list', title: 'Reverse Linked List', pattern: 'linked-list', difficulty: 'easy',
-    companies: ['amazon', 'microsoft', 'apple', 'nvidia', 'meta'],
+    companies: ['amazon', 'microsoft', 'apple', 'nvidia', 'meta', 'goldman', 'jpmorgan'],
     prompt: 'Iterative three-pointer reversal.',
     code: `def reverse_list(head):
     prev, cur = __0__
@@ -333,7 +333,7 @@ def count_in_range(arr, lo, hi):
   }),
   s({
     id: 'syn-merge-lists', title: 'Merge Two Sorted Lists (dummy)', pattern: 'linked-list', difficulty: 'easy',
-    companies: ['amazon', 'microsoft', 'apple', 'meta'],
+    companies: ['amazon', 'microsoft', 'apple', 'meta', 'goldman', 'jpmorgan'],
     prompt: 'Dummy head avoids special-casing the first node.',
     code: `def merge(l1, l2):
     dummy = tail = __0__
@@ -353,7 +353,7 @@ def count_in_range(arr, lo, hi):
   }),
   s({
     id: 'syn-has-cycle', title: 'Linked List Cycle (Floyd)', pattern: 'linked-list', difficulty: 'easy',
-    companies: ['amazon', 'microsoft', 'nvidia'],
+    companies: ['amazon', 'microsoft', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Fast/slow pointers, O(1) space.',
     code: `def has_cycle(head):
     slow = fast = head
@@ -372,7 +372,7 @@ def count_in_range(arr, lo, hi):
   // ───────────── Trees ─────────────
   s({
     id: 'syn-level-order', title: 'Binary Tree Level Order', pattern: 'trees', difficulty: 'medium',
-    companies: ['meta', 'amazon', 'microsoft', 'google', 'apple'],
+    companies: ['meta', 'amazon', 'microsoft', 'google', 'apple', 'goldman', 'jpmorgan'],
     prompt: 'BFS with a deque, one level per outer loop.',
     code: `from collections import deque
 
@@ -397,7 +397,7 @@ def level_order(root):
   }),
   s({
     id: 'syn-validate-bst', title: 'Validate BST (bounds)', pattern: 'trees', difficulty: 'medium',
-    companies: ['meta', 'amazon', 'microsoft', 'google'],
+    companies: ['meta', 'amazon', 'microsoft', 'google', 'goldman', 'jpmorgan'],
     prompt: 'Pass down an open interval (lo, hi).',
     code: `def is_valid_bst(root):
     def dfs(node, lo, hi):
@@ -416,7 +416,7 @@ def level_order(root):
   }),
   s({
     id: 'syn-lca', title: 'Lowest Common Ancestor', pattern: 'trees', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'microsoft', 'openai'],
+    companies: ['meta', 'google', 'amazon', 'microsoft', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Return the node where p and q split.',
     code: `def lca(root, p, q):
     if not root or root is p or root is q:
@@ -434,7 +434,7 @@ def level_order(root):
   }),
   s({
     id: 'syn-max-depth', title: 'Max Depth (recursive)', pattern: 'trees', difficulty: 'easy',
-    companies: ['amazon', 'apple', 'microsoft', 'netflix'],
+    companies: ['amazon', 'apple', 'microsoft', 'netflix', 'goldman', 'jpmorgan'],
     prompt: 'One-liner recursion.',
     code: `def max_depth(root):
     if __0__:
@@ -449,7 +449,7 @@ def level_order(root):
   // ───────────── Tries ─────────────
   s({
     id: 'syn-trie', title: 'Trie with TrieNode class', pattern: 'tries', difficulty: 'medium',
-    companies: ['google', 'amazon', 'microsoft', 'openai'],
+    companies: ['google', 'amazon', 'microsoft', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Insert + startsWith.',
     code: `class TrieNode:
     def __init__(self):
@@ -510,7 +510,7 @@ def search(root, word):
   // ───────────── Heaps ─────────────
   s({
     id: 'syn-k-largest', title: 'K Largest (size-k min-heap)', pattern: 'heaps', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'google', 'nvidia', 'citadel'],
+    companies: ['amazon', 'meta', 'google', 'nvidia', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Keep the k biggest seen so far.',
     code: `import heapq
 
@@ -528,7 +528,7 @@ def k_largest(nums, k):
   }),
   s({
     id: 'syn-last-stone', title: 'Last Stone Weight (max-heap)', pattern: 'heaps', difficulty: 'easy',
-    companies: ['amazon', 'google', 'hrt'],
+    companies: ['amazon', 'google', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'heapq is a min-heap; negate for max.',
     code: `import heapq
 
@@ -549,7 +549,7 @@ def last_stone_weight(stones):
   }),
   s({
     id: 'syn-merge-k', title: 'Merge K Sorted Arrays', pattern: 'heaps', difficulty: 'hard',
-    companies: ['google', 'meta', 'amazon', 'hrt', 'citadel'],
+    companies: ['google', 'meta', 'amazon', 'hrt', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Heap of (value, list index, element index) tuples.',
     code: `import heapq
 
@@ -572,7 +572,7 @@ def merge_k_sorted(lists):
   // ───────────── Backtracking ─────────────
   s({
     id: 'syn-subsets', title: 'Subsets (include / exclude)', pattern: 'backtracking', difficulty: 'medium',
-    companies: ['meta', 'amazon', 'google', 'microsoft'],
+    companies: ['meta', 'amazon', 'google', 'microsoft', 'goldman', 'jpmorgan'],
     prompt: 'Snapshot path at the leaf, undo after recursion.',
     code: `def subsets(nums):
     res, path = [], []
@@ -593,7 +593,7 @@ def merge_k_sorted(lists):
   }),
   s({
     id: 'syn-permute', title: 'Permutations (used[])', pattern: 'backtracking', difficulty: 'medium',
-    companies: ['meta', 'microsoft', 'apple', 'amazon'],
+    companies: ['meta', 'microsoft', 'apple', 'amazon', 'goldman', 'jpmorgan'],
     prompt: 'Track used indices.',
     code: `def permute(nums):
     res, path, used = [], [], [False] * len(nums)
@@ -619,7 +619,7 @@ def merge_k_sorted(lists):
   }),
   s({
     id: 'syn-combination-sum', title: 'Combination Sum (prune)', pattern: 'backtracking', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'nvidia'],
+    companies: ['amazon', 'meta', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Candidates may be reused; prune when over target.',
     code: `def combination_sum(cands, target):
     cands.sort()
@@ -645,7 +645,7 @@ def merge_k_sorted(lists):
   // ───────────── Graphs ─────────────
   s({
     id: 'syn-islands', title: 'Number of Islands (DFS + visited)', pattern: 'graphs', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'nvidia'],
+    companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: '4-directional grid DFS with a visited set of tuples.',
     code: `def num_islands(grid):
     rows, cols = len(grid), len(grid[0])
@@ -673,7 +673,7 @@ def merge_k_sorted(lists):
   }),
   s({
     id: 'syn-rotting', title: 'Rotting Oranges (multi-source BFS)', pattern: 'graphs', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'google'],
+    companies: ['amazon', 'meta', 'google', 'goldman', 'jpmorgan'],
     prompt: 'Seed the queue with every rotten orange.',
     code: `from collections import deque
 
@@ -707,7 +707,7 @@ def oranges_rotting(grid):
   // ───────────── Advanced Graphs ─────────────
   s({
     id: 'syn-kahn', title: "Topological Sort (Kahn's)", pattern: 'adv-graphs', difficulty: 'medium',
-    companies: ['google', 'amazon', 'meta', 'openai', 'nvidia'],
+    companies: ['google', 'amazon', 'meta', 'openai', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Return an order, or [] if a cycle exists.',
     code: `from collections import deque, defaultdict
 
@@ -735,7 +735,7 @@ def topo_sort(n, edges):
   }),
   s({
     id: 'syn-dijkstra', title: "Dijkstra's Shortest Path", pattern: 'adv-graphs', difficulty: 'hard',
-    companies: ['google', 'amazon', 'citadel', 'hrt', 'nvidia'],
+    companies: ['google', 'amazon', 'citadel', 'hrt', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Heap of (distance, node). Skip stale entries.',
     code: `import heapq
 
@@ -791,7 +791,7 @@ def dijkstra(graph, src):
   // ───────────── 1D DP ─────────────
   s({
     id: 'syn-climb', title: 'Climbing Stairs (@lru_cache)', pattern: 'dp-1d', difficulty: 'easy',
-    companies: ['amazon', 'apple', 'microsoft', 'google'],
+    companies: ['amazon', 'apple', 'microsoft', 'google', 'goldman', 'jpmorgan'],
     prompt: 'Top-down memoization.',
     code: `from functools import __0__
 
@@ -809,7 +809,7 @@ def climb(n):
   }),
   s({
     id: 'syn-rob', title: 'House Robber (rolling vars)', pattern: 'dp-1d', difficulty: 'medium',
-    companies: ['amazon', 'google', 'microsoft', 'citadel'],
+    companies: ['amazon', 'google', 'microsoft', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'O(1) space with simultaneous assignment.',
     code: `def rob(nums):
     prev2 = prev1 = 0
@@ -822,7 +822,7 @@ def climb(n):
   }),
   s({
     id: 'syn-coin-change', title: 'Coin Change (bottom-up)', pattern: 'dp-1d', difficulty: 'medium',
-    companies: ['amazon', 'google', 'meta', 'hrt'],
+    companies: ['amazon', 'google', 'meta', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'Min coins for each amount up to target.',
     code: `def coin_change(coins, amount):
     dp = __0__
@@ -841,7 +841,7 @@ def climb(n):
   // ───────────── 2D DP ─────────────
   s({
     id: 'syn-unique-paths', title: 'Unique Paths (grid init)', pattern: 'dp-2d', difficulty: 'medium',
-    companies: ['google', 'amazon', 'meta', 'apple'],
+    companies: ['google', 'amazon', 'meta', 'apple', 'goldman', 'jpmorgan'],
     prompt: 'Build an m×n grid WITHOUT row aliasing.',
     code: `def unique_paths(m, n):
     dp = __0__
@@ -856,7 +856,7 @@ def climb(n):
   }),
   s({
     id: 'syn-lcs', title: 'Longest Common Subsequence', pattern: 'dp-2d', difficulty: 'medium',
-    companies: ['google', 'amazon', 'microsoft', 'openai'],
+    companies: ['google', 'amazon', 'microsoft', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'dp[i][j] = LCS of a[:i], b[:j].',
     code: `def lcs(a, b):
     m, n = len(a), len(b)
@@ -875,7 +875,7 @@ def climb(n):
   }),
   s({
     id: 'syn-knapsack', title: '0/1 Knapsack (1D rolling)', pattern: 'dp-2d', difficulty: 'hard',
-    companies: [...QUANT, 'amazon'],
+    companies: [...QUANT, 'amazon', 'goldman', 'jpmorgan'],
     prompt: 'Iterate capacity DOWNWARD so each item is used once.',
     code: `def knapsack(weights, values, cap):
     dp = [0] * (cap + 1)
@@ -892,7 +892,7 @@ def climb(n):
   // ───────────── Greedy & Intervals ─────────────
   s({
     id: 'syn-merge-intervals', title: 'Merge Intervals', pattern: 'greedy', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'microsoft', 'netflix', 'citadel'],
+    companies: ['meta', 'google', 'amazon', 'microsoft', 'netflix', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Sort by start, extend the last merged interval.',
     code: `def merge(intervals):
     __0__
@@ -910,7 +910,7 @@ def climb(n):
   }),
   s({
     id: 'syn-erase-overlap', title: 'Non-overlapping Intervals', pattern: 'greedy', difficulty: 'medium',
-    companies: ['google', 'meta', 'amazon'],
+    companies: ['google', 'meta', 'amazon', 'goldman', 'jpmorgan'],
     prompt: 'Greedy: keep the interval that ends first.',
     code: `def erase_overlap(intervals):
     intervals.sort(key=__0__)
@@ -927,7 +927,7 @@ def climb(n):
   }),
   s({
     id: 'syn-meeting-rooms', title: 'Meeting Rooms II (heap of ends)', pattern: 'greedy', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'netflix'],
+    companies: ['meta', 'google', 'amazon', 'netflix', 'goldman', 'jpmorgan'],
     prompt: 'Min-heap of end times of rooms in use.',
     code: `import heapq
 
@@ -948,7 +948,7 @@ def min_rooms(intervals):
   // ───────────── Bits ─────────────
   s({
     id: 'syn-single-number', title: 'Single Number (XOR)', pattern: 'bits', difficulty: 'easy',
-    companies: ['amazon', 'apple', 'nvidia', 'hrt'],
+    companies: ['amazon', 'apple', 'nvidia', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'x ^ x == 0 and x ^ 0 == x.',
     code: `def single_number(nums):
     res = 0
@@ -959,7 +959,7 @@ def min_rooms(intervals):
   }),
   s({
     id: 'syn-popcount', title: 'Count Set Bits (Kernighan)', pattern: 'bits', difficulty: 'easy',
-    companies: ['apple', 'nvidia', 'microsoft', 'hrt'],
+    companies: ['apple', 'nvidia', 'microsoft', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'Drop the lowest set bit each loop.',
     code: `def hamming_weight(n):
     count = 0
@@ -1053,7 +1053,7 @@ def expected(trials=50_000):
   // ───────────── DS From Scratch ─────────────
   s({
     id: 'syn-lru-od', title: 'LRU Cache (OrderedDict)', pattern: 'ds-scratch', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'microsoft', 'citadel', 'hrt', 'openai', 'nvidia'],
+    companies: ['amazon', 'meta', 'microsoft', 'citadel', 'hrt', 'openai', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'O(1) get/put, evict least recently used.',
     code: `from collections import OrderedDict
 

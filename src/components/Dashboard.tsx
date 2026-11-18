@@ -132,7 +132,7 @@ export default function Dashboard({ progress, go, reset }: Props) {
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="text-zinc-300 group-hover:text-white">
                       {c.name}
-                      <span className={`ml-2 rounded px-1 text-[10px] ${c.tier === 'quant' ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>{c.tier === 'quant' ? 'QUANT' : 'BIG TECH'}</span>
+                      <span className={`ml-2 rounded px-1 text-[10px] ${c.tier === 'quant' ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>{c.tier === 'quant' ? 'QUANT' : c.tier === 'bank' ? 'BANK' : 'BIG TECH'}</span>
                     </span>
                     <span className="font-mono text-xs text-zinc-400">{Math.round(m * 100)}% · {items.length}</span>
                   </div>

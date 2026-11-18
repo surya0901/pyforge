@@ -11,7 +11,7 @@ export interface Flashcard {
 }
 
 export const DECKS: { id: DeckId; name: string; blurb: string; companies: CompanyId[] }[] = [
-  { id: 'behavioral', name: 'Behavioral', blurb: 'Stories, values, and what each question is really testing', companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'netflix', 'openai', 'nvidia', 'citadel', 'hrt', 'janestreet'] },
+  { id: 'behavioral', name: 'Behavioral', blurb: 'Stories, values, and what each question is really testing', companies: ['amazon', 'meta', 'google', 'microsoft', 'apple', 'netflix', 'openai', 'nvidia', 'citadel', 'hrt', 'janestreet', 'goldman', 'jpmorgan'] },
   { id: 'fundamentals', name: 'CS fundamentals', blurb: 'OS, networking, databases, concurrency, C++ basics', companies: ['hrt', 'citadel', 'nvidia', 'apple', 'microsoft', 'janestreet'] },
   { id: 'python', name: 'Python internals', blurb: 'The language traps interviewers love', companies: ['citadel', 'hrt', 'janestreet', 'meta', 'google', 'openai'] },
   { id: 'design', name: 'System design', blurb: 'Concepts and numbers for new-grad design rounds', companies: ['meta', 'google', 'amazon', 'microsoft', 'netflix', 'openai'] },

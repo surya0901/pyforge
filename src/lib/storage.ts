@@ -10,7 +10,7 @@ export function loadProgress(): Progress {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyProgress();
     const p = JSON.parse(raw) as Partial<Progress>;
-    return { cards: p.cards ?? {}, days: p.days ?? [], mistakes: p.mistakes ?? {}, math: p.math ?? [], savedAt: p.savedAt ?? 0 };
+    return { cards: p.cards ?? {}, days: p.days ?? [], mistakes: p.mistakes ?? {}, math: p.math ?? [], savedAt: p.savedAt ?? 0, lessons: p.lessons ?? {} };
   } catch {
     return emptyProgress();
   }
@@ -22,6 +22,13 @@ export function saveProgress(p: Progress) {
   } catch {
     /* storage full or blocked — progress stays in memory */
   }
+}
+
+export function updateLesson(p: Progress, id: string, patch: (s: import('../types').LessonState) => import('../types').LessonState): Progress {
+  const lessons = { ...(p.lessons ?? {}) };
+  lessons[id] = patch({ ...(lessons[id] ?? {}) });
+  const d = today();
+  return { ...p, lessons, days: p.days.includes(d) ? p.days : [...p.days, d], savedAt: Date.now() };
 }
 
 export const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD

@@ -127,6 +127,24 @@ export const PLAYBOOKS: Playbook[] = [
     weights: { patterns: 0.15, syntax: 0.15, bugs: 0.15, design: 0.2, behavioral: 0.25, fundamentals: 0.1 },
     links: [{ label: 'Netflix culture memo', url: 'https://jobs.netflix.com/culture' }],
   },
+  {
+    id: 'goldman', tagline: 'Engineering Analyst program: classic LeetCode plus a resume heavy Superday.',
+    loop: ['HackerRank online assessment (usually 2 coding problems, some tracks add math multiple choice)', 'HireVue recorded behavioral interview', 'Superday: two or more 45 minute interviews mixing data structures and algorithms, resume deep dive and sometimes light system design'],
+    focus: ['LeetCode easy to medium, arrays, strings, linked lists, stacks', 'Some reports of hard OA problems, so do not skip DP and graphs', 'OOP, databases and OS basics', 'Explaining your resume projects in detail'],
+    values: 'Client service, integrity, teamwork, excellence. Interviewers look for clear communication and ownership.',
+    tips: ['Practice explaining a solution out loud in 2 minutes for the HireVue.', 'Know every project on your resume deeply, Superday interviewers dig in.', 'Have a crisp answer for why Goldman and why engineering at a bank.'],
+    weights: { patterns: 0.3, syntax: 0.15, bugs: 0.1, fundamentals: 0.15, behavioral: 0.2, design: 0.05, math: 0.05 },
+    links: [{ label: 'Goldman Sachs careers: students', url: 'https://www.goldmansachs.com/careers/students/' }],
+  },
+  {
+    id: 'jpmorgan', tagline: 'Software Engineer Program: approachable coding, then a hackathon or Superday.',
+    loop: ['HackerRank coding assessment (2 problems, usually easy to medium)', 'HireVue: recorded behavioral answers, sometimes coding with a recorded explanation', 'Final: Code for Good hackathon (team builds an app for a nonprofit) or a Superday with one technical and one behavioral interview'],
+    focus: ['Arrays, strings, hash maps, simple DP (Fibonacci, Decode Ways, Best Time to Buy and Sell Stock were reported)', 'OOP concepts, database indexes, Java or Python basics', 'Teamwork and communication during the hackathon'],
+    values: 'Teamwork, client focus, integrity, and growth mindset. The hackathon is judged on collaboration as much as code.',
+    tips: ['In Code for Good, speak up, pair with teammates and own one piece end to end.', 'Be ready to define OOP terms (inheritance, polymorphism, encapsulation) and what a database index is.', 'HireVue answers are timed, so rehearse 60 to 90 second STAR stories.'],
+    weights: { patterns: 0.25, syntax: 0.2, bugs: 0.1, fundamentals: 0.15, behavioral: 0.25, design: 0.05 },
+    links: [{ label: 'JPMorgan Chase: Software Engineer Program', url: 'https://careers.jpmorgan.com/us/en/students/programs/software-engineer-fulltime' }],
+  },
 ];
 
 export const RESOURCES: { label: string; url: string; note: string }[] = [

@@ -1,6 +1,8 @@
-import { CheckCircle2, Play, Timer, XCircle } from 'lucide-react';
+import { BookOpen, CheckCircle2, Play, Timer, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DS_CHOICES, PATTERNS, PATTERN_NAME } from '../data/meta';
+import { DS_FITS, FITS_WHEN, LESSON_BY_ID, LESSON_FOR_PATTERN } from '../data/lessons';
+import { highlight } from '../lib/highlight';
 import { shuffle } from '../lib/check';
 import type { PatternExercise, PatternId } from '../types';
 import { Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
@@ -8,13 +10,16 @@ import { Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
 interface Props {
   queue: PatternExercise[];
   onResult: (id: string, quality: 0 | 1 | 2 | 3, tags: string[]) => void;
+  onLearn?: (lessonId: string) => void;
 }
 
 const LIMIT = 15;
 
-export default function PatternDrill({ queue, onResult }: Props) {
+export default function PatternDrill({ queue, onResult, onLearn }: Props) {
   const [idx, setIdx] = useState(0);
   const [running, setRunning] = useState(false);
+  const [timed, setTimed] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const ex = queue[idx % Math.max(queue.length, 1)];
   const [pat, setPat] = useState<PatternId | null>(null);
   const [ds, setDs] = useState<string | null>(null);
@@ -36,12 +41,12 @@ export default function PatternDrill({ queue, onResult }: Props) {
   }, [ex, idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setPat(null); setDs(null); setDone(false); setTimedOut(false); setLeft(LIMIT);
+    setPat(null); setDs(null); setDone(false); setTimedOut(false); setLeft(LIMIT); setShowCode(false);
     start.current = Date.now();
   }, [idx, running]);
 
   useEffect(() => {
-    if (!running || done) return;
+    if (!running || done || !timed) return;
     const t = setInterval(() => {
       const remain = LIMIT - (Date.now() - start.current) / 1000;
       setLeft(Math.max(0, remain));
@@ -55,7 +60,7 @@ export default function PatternDrill({ queue, onResult }: Props) {
     setDone(true);
     const pr = p === ex.answerPattern, dr = d === ex.answerDS;
     const secs = (Date.now() - start.current) / 1000;
-    const quality: 0 | 1 | 2 | 3 = pr && dr ? (secs < 8 ? 3 : 2) : pr ? 1 : 0;
+    const quality: 0 | 1 | 2 | 3 = pr && dr ? (timed && secs < 8 ? 3 : 2) : pr ? 1 : 0;
     const tags = [...(timeout ? ['timeout'] : []), ...(!pr ? ['pattern-miss'] : []), ...(!dr ? ['ds-miss'] : [])];
     onResult(ex.id, quality, tags);
     setScore((s) => ({ right: s.right + (pr && dr ? 1 : 0), total: s.total + 1 }));
@@ -87,11 +92,15 @@ export default function PatternDrill({ queue, onResult }: Props) {
         <Timer className="mx-auto mb-3 text-violet-400" size={28} />
         <h2 className="text-lg font-semibold text-zinc-100">Pattern Recognizer</h2>
         <p className="mt-2 text-sm text-zinc-400">
-          {LIMIT} seconds per problem. Name the optimal pattern, then the primary Python data structure.
-          Under 8 s with both right counts as an easy recall.
+          Read the problem, name the pattern, then the main Python data structure. When you miss, you get a full
+          explanation of the clue you should have spotted and why your pick doesn't fit.
         </p>
         <p className="mt-2 text-xs text-zinc-500">{queue.length} problems in this set · keys <Kbd>1</Kbd>–<Kbd>4</Kbd></p>
-        <Button className="mt-5" onClick={() => setRunning(true)}><Play size={15} />Start <Kbd>Enter</Kbd></Button>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <Button onClick={() => { setTimed(false); setRunning(true); }}><Play size={15} />Practice, no timer <Kbd>Enter</Kbd></Button>
+          <Button variant="subtle" onClick={() => { setTimed(true); setRunning(true); }}><Timer size={15} />Speed round, {LIMIT}s each</Button>
+        </div>
+        <p className="mt-3 text-xs text-zinc-500">New to patterns? Start untimed. Switch to speed rounds once you get most right.</p>
       </Card>
     );
   }
@@ -109,14 +118,14 @@ export default function PatternDrill({ queue, onResult }: Props) {
         <span className="tnum">{score.right} of {score.total} right this session</span>
       </div>
       <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-        <div className={`h-full transition-[width] duration-100 ${pct > 0.5 ? 'bg-emerald-500' : pct > 0.2 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${(done ? 0 : pct) * 100}%` }} />
+        <div className={`h-full transition-[width] duration-100 ${!timed ? 'bg-transparent' : pct > 0.5 ? 'bg-emerald-500' : pct > 0.2 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${(done ? 0 : pct) * 100}%` }} />
       </div>
 
       <Card className="p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <DiffTag d={ex.difficulty} />
           <CompanyTags ids={ex.companies} />
-          {!done && <span className="ml-auto font-mono text-sm text-zinc-300">{left.toFixed(1)}s</span>}
+          {!done && timed && <span className="ml-auto font-mono text-sm text-zinc-300">{left.toFixed(1)}s</span>}
         </div>
         <p className="text-xl leading-snug text-zinc-100">{ex.statement}</p>
         <p className="mt-2 font-mono text-xs text-sky-300">{ex.constraints}</p>
@@ -145,18 +154,61 @@ export default function PatternDrill({ queue, onResult }: Props) {
         </div>
       </div>
 
-      {done && (
-        <Card className="mt-4 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-            {pat === ex.answerPattern && ds === ex.answerDS
-              ? <><CheckCircle2 size={16} className="text-emerald-400" /><span className="text-emerald-300">Both right</span></>
-              : <><XCircle size={16} className="text-rose-400" /><span className="text-rose-300">{timedOut ? 'Time’s up' : 'Not quite'}</span></>}
-            <span className="ml-2 text-zinc-400">Answer: <span className="hl text-zinc-100">{PATTERN_NAME[ex.answerPattern]}</span> with <span className="hl font-mono text-zinc-100">{ex.answerDS}</span></span>
-          </div>
-          <p className="text-sm text-zinc-400">{ex.why}</p>
-          <Button className="mt-3" onClick={next}>Next<Kbd>Enter</Kbd></Button>
-        </Card>
-      )}
+      {done && <Explain ex={ex} pat={pat} ds={ds} timedOut={timedOut} showCode={showCode} setShowCode={setShowCode} onLearn={onLearn} next={next} />}
     </div>
+  );
+}
+
+function Explain({ ex, pat, ds, timedOut, showCode, setShowCode, onLearn, next }: {
+  ex: PatternExercise; pat: PatternId | null; ds: string | null; timedOut: boolean;
+  showCode: boolean; setShowCode: (b: boolean) => void; onLearn?: (id: string) => void; next: () => void;
+}) {
+  const pr = pat === ex.answerPattern, dr = ds === ex.answerDS;
+  const lessonId = LESSON_FOR_PATTERN[ex.answerPattern];
+  const lesson = lessonId ? LESSON_BY_ID[lessonId] : undefined;
+  const both = pr && dr;
+  return (
+    <Card className="mt-4 p-5">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm font-medium">
+        {both
+          ? <><CheckCircle2 size={16} className="text-emerald-400" /><span className="text-emerald-300">Both right</span></>
+          : pr ? <><CheckCircle2 size={16} className="text-amber-400" /><span className="text-amber-300">Pattern right, data structure off</span></>
+          : <><XCircle size={16} className="text-rose-400" /><span className="text-rose-300">{timedOut ? 'Time\u2019s up' : 'Not quite'}</span></>}
+        <span className="text-zinc-400">Answer: <span className="hl text-zinc-100">{PATTERN_NAME[ex.answerPattern]}</span> with <span className="hl font-mono text-zinc-100">{ex.answerDS}</span></span>
+      </div>
+      <p className="leading-relaxed text-zinc-200">{ex.why}</p>
+
+      {!both && (
+        <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4 text-[15px] leading-relaxed">
+          <div>
+            <h4 className="font-semibold text-zinc-100">The clue you should look for</h4>
+            <p className="text-zinc-300">{PATTERN_NAME[ex.answerPattern]} fits when {FITS_WHEN[ex.answerPattern]}. Look at the constraint <span className="font-mono text-sky-300">{ex.constraints}</span>: the target complexity rules out the brute force and points here.</p>
+            {lesson && <ul className="mt-2 list-disc space-y-0.5 pl-5 text-zinc-400 marker:text-zinc-600">{lesson.signals.slice(0, 3).map((x) => <li key={x}>{x}</li>)}</ul>}
+          </div>
+          {pat && !pr && (
+            <div>
+              <h4 className="font-semibold text-zinc-100">Why not {PATTERN_NAME[pat]}?</h4>
+              <p className="text-zinc-300">{PATTERN_NAME[pat]} is for when {FITS_WHEN[pat]}. This problem doesn't have that shape, so it would either be slower than the target or give wrong answers.</p>
+            </div>
+          )}
+          {!dr && (
+            <div>
+              <h4 className="font-semibold text-zinc-100">About the data structure</h4>
+              <p className="text-zinc-300">{ds ? <>You picked <span className="font-mono">{ds}</span>, which is for {DS_FITS[ds] ?? 'a different job'}. </> : null}Here the work is done by <span className="font-mono">{ex.answerDS}</span>, used for {DS_FITS[ex.answerDS] ?? 'this job'}.</p>
+            </div>
+          )}
+          {lesson && (
+            <div>
+              <button onClick={() => setShowCode(!showCode)} className="text-sm font-medium text-violet-300 hover:underline">{showCode ? 'Hide' : 'Show'} the {lesson.name.toLowerCase()} template</button>
+              {showCode && <pre className="mt-2 overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 font-mono text-[13px] leading-relaxed">{lesson.template.split('\n').slice(0, 14).map((line, i) => <div key={i}>{line ? highlight(line, `x${i}`) : '\u00a0'}</div>)}</pre>}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button onClick={next}>Next<Kbd>Enter</Kbd></Button>
+        {!both && lesson && onLearn && <Button variant="subtle" onClick={() => onLearn(lesson.id)}><BookOpen size={15} />Learn {lesson.name}</Button>}
+      </div>
+    </Card>
   );
 }

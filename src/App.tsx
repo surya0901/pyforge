@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Briefcase, Bug, Calculator, Compass, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
+import { BarChart3, BookOpen, Briefcase, Bug, Calculator, Compass, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BugHunter from './components/BugHunter';
 import Coach from './components/Coach';
@@ -8,6 +8,7 @@ import DesignStudio from './components/DesignStudio';
 import Flashcards from './components/Flashcards';
 import MentalMath from './components/MentalMath';
 import PatternDrill from './components/PatternDrill';
+import Patterns from './components/Patterns';
 import { ReferenceContent, ReferenceDrawer } from './components/Reference';
 import StudyPath from './components/StudyPath';
 import SyntaxDrill from './components/SyntaxDrill';
@@ -15,12 +16,12 @@ import { getDB, pullProgress, pushProgress, watchNeetcode, type NeetcodeStatus }
 import { Empty, Kbd, PageTitle } from './components/ui';
 import { BUGS, PATTERN_DRILLS, SYNTAX } from './data';
 import { COMPANIES, PATTERNS } from './data/meta';
-import { buildQueue, emptyProgress, filterItems, getLocal, loadProgress, logMath, review, saveProgress, setLocal, streak } from './lib/storage';
-import type { CompanyId, Mode, PatternId, Progress } from './types';
+import { buildQueue, emptyProgress, filterItems, getLocal, loadProgress, logMath, review, saveProgress, setLocal, streak, updateLesson } from './lib/storage';
+import type { CompanyId, LessonState, Mode, PatternId, Progress } from './types';
 
 type NavItem = { id: Mode; label: string; icon: typeof Keyboard; key: string };
 const GROUPS: { name: string; items: NavItem[] }[] = [
-  { name: '', items: [{ id: 'coach', label: 'Today', icon: Compass, key: 't' }, { id: 'path', label: 'Study path', icon: MapIcon, key: 'n' }] },
+  { name: '', items: [{ id: 'coach', label: 'Today', icon: Compass, key: 't' }, { id: 'path', label: 'Study path', icon: MapIcon, key: 'n' }, { id: 'learn', label: 'Patterns', icon: GraduationCap, key: 'l' }] },
   { name: 'Coding drills', items: [
     { id: 'syntax', label: 'Syntax recall', icon: Keyboard, key: 's' },
     { id: 'bug', label: 'Bug hunter', icon: Bug, key: 'b' },
@@ -42,7 +43,7 @@ const ALL_NAV = GROUPS.flatMap((g) => g.items);
 const DRILL_INTRO: Partial<Record<Mode, { title: string; sub: string }>> = {
   syntax: { title: 'Syntax recall', sub: 'You know the algorithm. Type the exact Python. Each blank says what it should do, and wrong answers tell you why.' },
   bug: { title: 'Bug hunter', sub: 'Read code like a reviewer. Flag every broken line, then pick the fix. This is the skill AI-assisted and code-comprehension rounds test.' },
-  pattern: { title: 'Pattern speed', sub: 'Fifteen seconds to name the approach and the data structure from the constraints alone.' },
+  pattern: { title: 'Pattern speed', sub: 'Name the approach and the data structure from the problem and constraints. Practice untimed first, then race the clock.' },
 };
 
 const THEME_KEY = 'pyforge.theme';
@@ -61,6 +62,8 @@ export default function App() {
   const [ncCloud, setNcCloud] = useState<NeetcodeStatus | null>(null);
   const [cloud, setCloud] = useState(false);
   const [ncLocal, setNcLocal] = useState<string[]>(() => getLocal('pyforge.neetcode.local', ['duplicate-integer', 'is-anagram', 'two-integer-sum']));
+  const [lessonSel, setLessonSel] = useState<string | undefined>();
+  const [ncSyncedAt, setNcSyncedAt] = useState<string | null>(() => getLocal('pyforge.neetcode.syncedAt', null));
   const [pace, setPaceState] = useState<number>(() => getLocal('pyforge.pace', 2));
   const setPace = (n: number) => { setPaceState(n); setLocal('pyforge.pace', n); };
   const solved = useMemo(() => new Set(ncCloud ? ncCloud.solved : ncLocal), [ncCloud, ncLocal]);
@@ -69,6 +72,23 @@ export default function App() {
     setLocal('pyforge.neetcode.local', next);
     return next;
   });
+
+  // NeetCode sync for the standalone site: the bookmark (or the hourly task in Chrome) opens #nc=slug,slug,...
+  useEffect(() => {
+    const read = () => {
+      const m = location.hash.match(/^#nc=([a-z0-9,-]*)$/);
+      if (!m) return;
+      const slugs = m[1].split(',').filter(Boolean);
+      setNcLocal(slugs); setLocal('pyforge.neetcode.local', slugs);
+      const at = new Date().toISOString();
+      setNcSyncedAt(at); setLocal('pyforge.neetcode.syncedAt', at);
+      history.replaceState(null, '', location.pathname + location.search);
+      setMode('path');
+    };
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
 
   // Cloud (claude.ai artifact only): pull newer progress once, then follow the NeetCode feed live.
   useEffect(() => {
@@ -92,6 +112,8 @@ export default function App() {
   useEffect(() => { window.scrollTo({ top: 0 }); }, [mode]);
 
   const onResult = useCallback((id: string, q: 0 | 1 | 2 | 3, tags: string[]) => setProgress((p) => review(p, id, q, tags)), []);
+  const onLesson = useCallback((id: string, patch: (s: LessonState) => LessonState) => setProgress((p) => updateLesson(p, id, patch)), []);
+  const learn = (id?: string) => { setLessonSel(id); setMode('learn'); setSession((s) => s + 1); };
   const onMath = useCallback((score: number) => setProgress((p) => logMath(p, score)), []);
 
   const queues = useMemo(() => {
@@ -113,7 +135,7 @@ export default function App() {
     setSession((s) => s + 1);
   };
   const go = (m: Mode, pat: PatternId | 'all' = pattern, comp: CompanyId | 'all' = company) => open(m, { pattern: pat, company: comp });
-  const nav = (m: Mode) => { setDeck(undefined); setFocus(undefined); setMode(m); };
+  const nav = (m: Mode) => { setDeck(undefined); setFocus(undefined); if (m === 'learn') setLessonSel(undefined); setMode(m); };
 
   useEffect(() => {
     let g = false;
@@ -145,10 +167,11 @@ export default function App() {
 
   const body = () => {
     switch (mode) {
-      case 'coach': return <Coach progress={progress} open={open} solved={solved} />;
-      case 'path': return <StudyPath progress={progress} solved={solved} syncedAt={ncCloud?.updatedAt ?? null} cloud={cloud && !!ncCloud} pace={pace} setPace={setPace} toggleLocal={toggleLocal} open={open} />;
+      case 'coach': return <Coach progress={progress} open={open} solved={solved} onLearn={learn} />;
+      case 'path': return <StudyPath progress={progress} solved={solved} syncedAt={ncCloud?.updatedAt ?? ncSyncedAt} cloud={cloud && !!ncCloud} pace={pace} setPace={setPace} toggleLocal={toggleLocal} open={open} />;
+      case 'learn': return <Patterns key={`${lessonSel}-${session}`} progress={progress} solved={solved} initial={lessonSel} onLesson={onLesson} open={open} />;
       case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><Dashboard progress={progress} go={go} reset={() => setProgress(emptyProgress())} /></>;
-      case 'companies': return <Companies key={company} progress={progress} solved={solved} initial={company} open={open} />;
+      case 'companies': return <Companies key={company} progress={progress} solved={solved} initial={company} open={open} onLearn={learn} />;
       case 'design': return <DesignStudio key={company} progress={progress} company={company} onResult={onResult} />;
       case 'cards': return <Flashcards key={`${company}-${deck}-${session}`} progress={progress} company={company} initialDeck={deck} onResult={onResult} />;
       case 'math': return <MentalMath progress={progress} onFinish={onMath} />;
@@ -162,7 +185,7 @@ export default function App() {
             {!q.length ? <Empty text="Nothing matches these filters. Try all companies or all patterns." />
               : mode === 'syntax' ? <SyntaxDrill key={filterKey} queue={queues.syntax} onResult={onResult} />
               : mode === 'bug' ? <BugHunter key={filterKey} queue={queues.bug} onResult={onResult} />
-              : <PatternDrill key={filterKey} queue={queues.pattern} onResult={onResult} />}
+              : <PatternDrill key={filterKey} queue={queues.pattern} onResult={onResult} onLearn={learn} />}
           </>
         );
       }
@@ -218,6 +241,7 @@ export default function App() {
                 <option value="all">All companies</option>
                 <optgroup label="Quant">{COMPANIES.filter((c) => c.tier === 'quant').map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
                 <optgroup label="Big tech and AI">{COMPANIES.filter((c) => c.tier === 'bigtech').map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
+                <optgroup label="Banks">{COMPANIES.filter((c) => c.tier === 'bank').map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
               </select>
               {showPattern && (
                 <select value={pattern} onChange={(e) => go(mode, e.target.value as PatternId | 'all', company)} className={selectCls} aria-label="Pattern">

@@ -8,11 +8,14 @@ import type { CompanyId, Mode, Progress } from '../types';
 import { Bar, Button, Card, SectionTitle } from './ui';
 import { CoachPanel } from './AI';
 import { nextProblems } from './StudyPath';
+import { LESSON_BY_ID, LESSONS } from '../data/lessons';
+import { lessonForSlug, patternsSummary } from '../lib/coverage';
 
 interface Props {
   progress: Progress;
   solved: Set<string>;
   open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all' }) => void;
+  onLearn: (lessonId?: string) => void;
 }
 
 const TARGET_KEY = 'pyforge.targets.v1';
@@ -22,8 +25,13 @@ function greeting() {
   return h < 5 ? 'Late session' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-export default function Coach({ progress, open, solved }: Props) {
+export default function Coach({ progress, open, solved, onLearn }: Props) {
   const nextNc = nextProblems(solved, 1)[0];
+  const ncLessonId = nextNc ? lessonForSlug(nextNc.slug) : undefined;
+  const ncLesson = ncLessonId ? LESSON_BY_ID[ncLessonId] : undefined;
+  const readFirst = ncLesson && !progress.lessons?.[ncLesson.id]?.opened ? ncLesson : undefined;
+  const pat = patternsSummary(progress, solved);
+  const nextLesson = pat.rows.find((r) => !r.cov.learned)?.lesson ?? LESSONS[0];
   const [targets, setTargets] = useState<CompanyId[]>(() => getLocal(TARGET_KEY, [] as CompanyId[]));
   const [copied, setCopied] = useState(false);
   useEffect(() => setLocal(TARGET_KEY, targets), [targets]);
@@ -52,9 +60,18 @@ export default function Coach({ progress, open, solved }: Props) {
         <h1 className="mt-1 max-w-[22ch] text-[42px] font-bold leading-[1.05] tracking-[-0.025em] text-zinc-100">
           <span className="hl">{totalMin} minutes</span> is enough to move the needle today.
         </h1>
+        {readFirst && (
+          <button onClick={() => onLearn(readFirst.id)} className="mt-6 flex w-full flex-wrap items-center gap-3 rounded-md border border-amber-500/70 bg-amber-500/5 p-4 text-left transition-colors hover:bg-amber-500/10">
+            <div className="flex-1">
+              <div className="text-sm text-zinc-500">Before {nextNc!.name}, learn the pattern it uses (about 8 min)</div>
+              <div className="text-lg font-semibold text-zinc-100">{readFirst.name}</div>
+            </div>
+            <span className="font-medium text-amber-300">Read the lesson</span>
+          </button>
+        )}
         {nextNc && (
           <a href={nextNc.url} target="_blank" rel="noreferrer"
-            className="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-violet-500 bg-zinc-900 p-4 transition-colors hover:bg-zinc-950">
+            className={`${readFirst ? 'mt-3' : 'mt-6'} flex flex-wrap items-center gap-3 rounded-md border border-violet-500 bg-zinc-900 p-4 transition-colors hover:bg-zinc-950`}>
             <div className="flex-1">
               <div className="text-sm text-zinc-500">First, solve on NeetCode · {nextNc.section} · {solved.size}/150 done</div>
               <div className="text-lg font-semibold text-zinc-100">{nextNc.name} <span className="text-sm font-normal text-zinc-500">{nextNc.difficulty}</span></div>
@@ -63,15 +80,27 @@ export default function Coach({ progress, open, solved }: Props) {
           </a>
         )}
         <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {plan.map((p, i) => (
-            <button key={i} onClick={() => open(p.mode, { deck: p.deck })}
+          {plan.map((p, i) => {
+            const st = stats.find((x) => x.area === p.area);
+            // Low accuracy on pattern drills usually means the patterns were never taught. Send them to the lessons first.
+            const toLessons = p.area === 'patterns' && !!st && st.attempts >= 3 && st.accuracy < 0.5;
+            return (
+            <button key={i} onClick={() => (toLessons ? onLearn(nextLesson.id) : open(p.mode, { deck: p.deck }))}
               className="group rounded-md border border-zinc-800 bg-zinc-900 p-4 text-left transition-colors hover:border-violet-500">
               <div className="mb-2 flex items-center gap-1.5 text-sm text-zinc-500"><Clock size={14} />{p.minutes} min</div>
               <div className="text-lg font-semibold leading-snug text-zinc-100 group-hover:text-violet-300">{p.title}</div>
-              <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">{p.why}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">{p.why}{toLessons ? ` Start with the ${nextLesson.name} lesson, then drill again.` : ''}</p>
             </button>
-          ))}
+            );
+          })}
         </div>
+        <button onClick={() => onLearn()} className="mt-3 flex w-full items-center gap-4 rounded-md border border-zinc-800 bg-zinc-900 p-4 text-left transition-colors hover:border-violet-500">
+          <div className="flex-1">
+            <div className="text-sm text-zinc-500">Patterns learned</div>
+            <div className="text-lg font-semibold text-zinc-100"><span className="tnum">{pat.learned}</span> of {LESSONS.length} <span className="text-sm font-normal text-zinc-500">· next up: {nextLesson.name}</span></div>
+          </div>
+          <div className="w-40"><Bar value={pat.avg} /></div>
+        </button>
         {!anyPractice && <p className="mt-3 text-sm text-zinc-500">The plan sharpens after your first few sessions. It looks at what your target companies care about and where your accuracy is low.</p>}
       </section>
 

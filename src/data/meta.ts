@@ -23,7 +23,7 @@ export const PATTERNS: { id: PatternId; name: string; short: string; tools: stri
 
 export const PATTERN_NAME = Object.fromEntries(PATTERNS.map((p) => [p.id, p.name])) as Record<PatternId, string>;
 
-export const COMPANIES: { id: CompanyId; name: string; tier: 'quant' | 'bigtech' }[] = [
+export const COMPANIES: { id: CompanyId; name: string; tier: 'quant' | 'bigtech' | 'bank' }[] = [
   { id: 'citadel', name: 'Citadel', tier: 'quant' },
   { id: 'hrt', name: 'Hudson River Trading', tier: 'quant' },
   { id: 'janestreet', name: 'Jane Street', tier: 'quant' },
@@ -35,6 +35,8 @@ export const COMPANIES: { id: CompanyId; name: string; tier: 'quant' | 'bigtech'
   { id: 'microsoft', name: 'Microsoft', tier: 'bigtech' },
   { id: 'apple', name: 'Apple', tier: 'bigtech' },
   { id: 'netflix', name: 'Netflix', tier: 'bigtech' },
+  { id: 'goldman', name: 'Goldman Sachs', tier: 'bank' },
+  { id: 'jpmorgan', name: 'JPMorgan Chase', tier: 'bank' },
 ];
 
 export const COMPANY_NAME = Object.fromEntries(COMPANIES.map((c) => [c.id, c.name])) as Record<CompanyId, string>;

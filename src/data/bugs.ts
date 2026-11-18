@@ -6,7 +6,7 @@ const b = (x: B): BugExercise => ({ kind: 'bug', ...x });
 export const BUGS: BugExercise[] = [
   b({
     id: 'bug-first-dup', title: 'First Duplicate', pattern: 'arrays', difficulty: 'easy',
-    companies: ['amazon', 'apple', 'meta', 'citadel'],
+    companies: ['amazon', 'apple', 'meta', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Return the first value that appears twice, else -1.',
     code: `def first_duplicate(nums):
     seen = set()
@@ -24,7 +24,7 @@ export const BUGS: BugExercise[] = [
   }),
   b({
     id: 'bug-two-sum-sorted', title: 'Two Sum II (sorted input)', pattern: 'two-pointers', difficulty: 'easy',
-    companies: ['amazon', 'meta', 'microsoft', 'google'],
+    companies: ['amazon', 'meta', 'microsoft', 'google', 'goldman', 'jpmorgan'],
     prompt: 'Return indices of two numbers summing to target in a sorted array.',
     code: `def two_sum_sorted(nums, target):
     l, r = 0, len(nums)
@@ -48,7 +48,7 @@ export const BUGS: BugExercise[] = [
   }),
   b({
     id: 'bug-min-subarray', title: 'Minimum Size Subarray Sum', pattern: 'sliding-window', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'hrt'],
+    companies: ['meta', 'google', 'amazon', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'Smallest window length with sum >= target (positive ints).',
     code: `def min_subarray_len(target, nums):
     l = total = 0
@@ -69,7 +69,7 @@ export const BUGS: BugExercise[] = [
   }),
   b({
     id: 'bug-next-greater', title: 'Next Greater Element', pattern: 'stack', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'citadel'],
+    companies: ['meta', 'google', 'amazon', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'res[i] = first value to the right greater than nums[i], else -1.',
     code: `def next_greater(nums):
     res = [-1] * len(nums)
@@ -88,7 +88,7 @@ export const BUGS: BugExercise[] = [
   }),
   b({
     id: 'bug-binary-search', title: 'Binary Search', pattern: 'binary-search', difficulty: 'easy',
-    companies: ['google', 'microsoft', 'apple', 'nvidia', 'meta'],
+    companies: ['google', 'microsoft', 'apple', 'nvidia', 'meta', 'goldman', 'jpmorgan'],
     prompt: 'Classic search in a sorted array.',
     code: `def search(nums, target):
     lo, hi = 0, len(nums) - 1
@@ -110,7 +110,7 @@ export const BUGS: BugExercise[] = [
   }),
   b({
     id: 'bug-remove-nth', title: 'Remove Nth From End', pattern: 'linked-list', difficulty: 'medium',
-    companies: ['meta', 'amazon', 'microsoft', 'apple'],
+    companies: ['meta', 'amazon', 'microsoft', 'apple', 'goldman', 'jpmorgan'],
     prompt: 'Remove the nth node from the end in one pass.',
     code: `def remove_nth_from_end(head, n):
     dummy = ListNode(0, head)
@@ -131,7 +131,7 @@ export const BUGS: BugExercise[] = [
   }),
   b({
     id: 'bug-max-depth-bfs', title: 'Max Depth (BFS)', pattern: 'trees', difficulty: 'easy',
-    companies: ['amazon', 'meta', 'microsoft', 'netflix'],
+    companies: ['amazon', 'meta', 'microsoft', 'netflix', 'goldman', 'jpmorgan'],
     prompt: 'Count levels with BFS.',
     code: `from collections import deque
 
@@ -156,7 +156,7 @@ def max_depth(root):
   }),
   b({
     id: 'bug-trie', title: 'Dict Trie insert/search', pattern: 'tries', difficulty: 'medium',
-    companies: ['google', 'amazon', 'openai'],
+    companies: ['google', 'amazon', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Nested dict trie; "$" marks end of word.',
     code: `class Trie:
     def __init__(self):
@@ -184,7 +184,7 @@ def max_depth(root):
   }),
   b({
     id: 'bug-topk-heap', title: 'Top K Frequent (heap)', pattern: 'heaps', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'google', 'netflix', 'citadel'],
+    companies: ['amazon', 'meta', 'google', 'netflix', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Keep a size-k heap of the most frequent values.',
     code: `import heapq
 
@@ -205,7 +205,7 @@ def top_k_frequent(nums, k):
   }),
   b({
     id: 'bug-merge-k-lists', title: 'Merge K Linked Lists', pattern: 'heaps', difficulty: 'hard',
-    companies: ['google', 'meta', 'amazon', 'hrt', 'openai'],
+    companies: ['google', 'meta', 'amazon', 'hrt', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Heap-merge k sorted linked lists.',
     code: `import heapq
 
@@ -233,7 +233,7 @@ def merge_k_lists(lists):
   }),
   b({
     id: 'bug-combine', title: 'Combinations n choose k', pattern: 'backtracking', difficulty: 'medium',
-    companies: ['meta', 'amazon', 'microsoft'],
+    companies: ['meta', 'amazon', 'microsoft', 'goldman', 'jpmorgan'],
     prompt: 'All k-combinations of 1..n.',
     code: `def combine(n, k):
     res, path = [], []
@@ -256,7 +256,7 @@ def merge_k_lists(lists):
   }),
   b({
     id: 'bug-islands-sink', title: 'Number of Islands (sink)', pattern: 'graphs', difficulty: 'medium',
-    companies: ['amazon', 'meta', 'google', 'microsoft', 'nvidia'],
+    companies: ['amazon', 'meta', 'google', 'microsoft', 'nvidia', 'goldman', 'jpmorgan'],
     prompt: 'Count islands by sinking visited land.',
     code: `def num_islands(grid):
     rows, cols = len(grid), len(grid[0])
@@ -282,7 +282,7 @@ def merge_k_lists(lists):
   }),
   b({
     id: 'bug-bfs-dist', title: 'BFS Distances', pattern: 'graphs', difficulty: 'easy',
-    companies: ['google', 'meta', 'openai', 'amazon'],
+    companies: ['google', 'meta', 'openai', 'amazon', 'goldman', 'jpmorgan'],
     prompt: 'Shortest hop count from src to every reachable node.',
     code: `from collections import deque
 
@@ -302,7 +302,7 @@ def bfs_dist(graph, src):
   }),
   b({
     id: 'bug-course-schedule', title: 'Course Schedule (Kahn)', pattern: 'adv-graphs', difficulty: 'medium',
-    companies: ['google', 'amazon', 'meta', 'nvidia', 'openai'],
+    companies: ['google', 'amazon', 'meta', 'nvidia', 'openai', 'goldman', 'jpmorgan'],
     prompt: 'Can all courses be finished?',
     code: `from collections import deque
 
@@ -329,7 +329,7 @@ def can_finish(n, prereqs):
   }),
   b({
     id: 'bug-network-delay', title: 'Network Delay (Dijkstra)', pattern: 'adv-graphs', difficulty: 'medium',
-    companies: ['google', 'amazon', 'citadel', 'hrt'],
+    companies: ['google', 'amazon', 'citadel', 'hrt', 'goldman', 'jpmorgan'],
     prompt: 'Time for a signal from k to reach all n nodes.',
     code: `import heapq
 
@@ -354,7 +354,7 @@ def network_delay(times, n, k):
   }),
   b({
     id: 'bug-coin-change', title: 'Coin Change', pattern: 'dp-1d', difficulty: 'medium',
-    companies: ['amazon', 'google', 'meta'],
+    companies: ['amazon', 'google', 'meta', 'goldman', 'jpmorgan'],
     prompt: 'Fewest coins making amount.',
     code: `def coin_change(coins, amount):
     dp = [0] + [amount + 1] * amount
@@ -370,7 +370,7 @@ def network_delay(times, n, k):
   }),
   b({
     id: 'bug-unique-paths', title: 'Unique Paths', pattern: 'dp-2d', difficulty: 'easy',
-    companies: ['google', 'amazon', 'apple', 'meta'],
+    companies: ['google', 'amazon', 'apple', 'meta', 'goldman', 'jpmorgan'],
     prompt: 'Paths from top-left to bottom-right moving right/down.',
     code: `def unique_paths(m, n):
     dp = [[0] * n] * m
@@ -389,7 +389,7 @@ def network_delay(times, n, k):
   }),
   b({
     id: 'bug-edit-distance', title: 'Edit Distance', pattern: 'dp-2d', difficulty: 'hard',
-    companies: ['google', 'microsoft', 'openai', 'amazon'],
+    companies: ['google', 'microsoft', 'openai', 'amazon', 'goldman', 'jpmorgan'],
     prompt: 'Min insert/delete/replace ops to turn a into b.',
     code: `def edit_distance(a, b):
     m, n = len(a), len(b)
@@ -414,7 +414,7 @@ def network_delay(times, n, k):
   }),
   b({
     id: 'bug-merge-intervals', title: 'Merge Intervals', pattern: 'greedy', difficulty: 'medium',
-    companies: ['meta', 'google', 'amazon', 'netflix', 'citadel'],
+    companies: ['meta', 'google', 'amazon', 'netflix', 'citadel', 'goldman', 'jpmorgan'],
     prompt: 'Merge all overlapping intervals.',
     code: `def merge(intervals):
     intervals.sort(key=lambda x: x[1])
@@ -474,7 +474,7 @@ def simulate_dice(trials, counts={}):
   }),
   b({
     id: 'bug-lru-dll', title: 'LRU Cache (doubly linked list)', pattern: 'ds-scratch', difficulty: 'hard',
-    companies: ['amazon', 'meta', 'citadel', 'hrt', 'openai', 'microsoft'],
+    companies: ['amazon', 'meta', 'citadel', 'hrt', 'openai', 'microsoft', 'goldman', 'jpmorgan'],
     prompt: 'Hand-rolled LRU: dict + DLL with sentinels. Most recent at front.',
     code: `class Node:
     def __init__(self, k=0, v=0):

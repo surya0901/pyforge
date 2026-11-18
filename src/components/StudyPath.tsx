@@ -1,5 +1,5 @@
 import { CheckCircle2, ChevronDown, Circle, ExternalLink, RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ALL } from '../data';
 import { NC_SECTIONS, NEETCODE, SECTION_PRIMER, type NCProblem } from '../data/neetcode';
 import { mastery } from '../lib/storage';
@@ -44,6 +44,26 @@ export function nextProblems(solved: Set<string>, n = 3): NCProblem[] {
     }
   }
   return out;
+}
+
+export const SITE = 'https://surya0901.github.io/pyforge/';
+// Runs on neetcode.io: reads which NeetCode 150 rows are ticked and sends you back here with the list.
+const BOOKMARKLET = `javascript:(()=>{const r=[...document.querySelectorAll('tr')].filter(t=>t.querySelector('button.neeter-status-toggle'));if(r.length<100){alert('Open neetcode.io/practice/practice/neetcode150 first, signed in.');return}const s=r.filter(t=>t.querySelector('button.neeter-status-toggle[aria-pressed=%22true%22]')).map(t=>t.querySelector('a[href*=%22/problems/%22]').getAttribute('href').split('?')[0].split('/problems/')[1].split('/')[0]);location.href='${SITE}#nc='+s.join(',')})()`;
+
+function SyncBookmark() {
+  const ref = useRef<HTMLAnchorElement>(null);
+  // React refuses javascript: hrefs, so set it on the element directly.
+  useEffect(() => { ref.current?.setAttribute('href', BOOKMARKLET); }, []);
+  return (
+    <details className="mt-3 text-sm text-zinc-400">
+      <summary className="cursor-pointer text-violet-300">Sync from NeetCode in one click</summary>
+      <ol className="mt-2 list-decimal space-y-1 pl-5">
+        <li>Drag this to your bookmarks bar: <a ref={ref} onClick={(e) => e.preventDefault()} className="rounded border border-violet-500/50 px-2 py-0.5 font-medium text-violet-300">pyforge sync</a></li>
+        <li>Open <a href="https://neetcode.io/practice/practice/neetcode150" target="_blank" rel="noreferrer" className="underline">NeetCode 150</a> while signed in.</li>
+        <li>Click the bookmark. It brings you back here with every solved problem ticked.</li>
+      </ol>
+    </details>
+  );
 }
 
 export default function StudyPath({ progress, solved, syncedAt, cloud, pace, setPace, toggleLocal, open }: Props) {
@@ -94,8 +114,9 @@ export default function StudyPath({ progress, solved, syncedAt, cloud, pace, set
             <RefreshCw size={13} />
             {cloud
               ? syncedAt ? `Synced from your NeetCode account ${ago(syncedAt)}. Updates automatically every hour.` : 'Waiting for the first NeetCode sync.'
-              : 'Tick problems off below as you solve them. (Automatic NeetCode sync works in the hosted version.)'}
+              : syncedAt ? `Synced from NeetCode ${ago(syncedAt)}. Updates every hour while Chrome is open, or click the bookmark below.` : 'Not synced yet. Use the bookmark below, or tick problems off as you solve them.'}
           </p>
+          {!cloud && <SyncBookmark />}
         </Card>
         <Card className="p-5">
           <h3 className="text-lg font-semibold text-zinc-100">Your whole plan</h3>

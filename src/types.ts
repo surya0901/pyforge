@@ -29,7 +29,9 @@ export type CompanyId =
   | 'netflix'
   | 'apple'
   | 'nvidia'
-  | 'openai';
+  | 'openai'
+  | 'goldman'
+  | 'jpmorgan';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -73,7 +75,7 @@ export interface PatternExercise extends Base {
 }
 
 export type Exercise = SyntaxExercise | BugExercise | PatternExercise;
-export type Mode = 'coach' | 'path' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
+export type Mode = 'coach' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
 
 export interface CardState {
   reps: number;
@@ -92,4 +94,7 @@ export interface Progress {
   mistakes: Record<string, number>; // diagnostic tag -> count
   math: { at: number; score: number }[]; // mental math round results
   savedAt?: number; // last local change, used to merge with the cloud copy
+  lessons?: Record<string, LessonState>; // pattern lessons: opened + quick check results
 }
+
+export interface LessonState { opened?: number; checks?: Record<number, boolean>; learned?: boolean }

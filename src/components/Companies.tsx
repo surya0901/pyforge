@@ -6,6 +6,7 @@ import { NEETCODE } from '../data/neetcode';
 import { BehavioralPractice } from './AI';
 import { COMPANIES, COMPANY_NAME } from '../data/meta';
 import { AREA_DECK, AREA_MODE, areaStats, readiness } from '../lib/coach';
+import { companyCoverage, sharedWith } from '../lib/coverage';
 import type { CompanyId, Mode, Progress } from '../types';
 import { Bar, Button, Card, PageTitle, SectionTitle } from './ui';
 
@@ -14,9 +15,10 @@ interface Props {
   solved: Set<string>;
   initial?: CompanyId | 'all';
   open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all' }) => void;
+  onLearn: (lessonId: string) => void;
 }
 
-export default function Companies({ progress, solved, initial, open }: Props) {
+export default function Companies({ progress, solved, initial, open, onLearn }: Props) {
   const [id, setId] = useState<CompanyId>(initial && initial !== 'all' ? initial : 'citadel');
   const pb = PLAYBOOKS.find((p) => p.id === id)!;
   const stats = useMemo(() => areaStats(progress), [progress]);
@@ -27,6 +29,10 @@ export default function Companies({ progress, solved, initial, open }: Props) {
   const [practice, setPractice] = useState<string | null>(null);
   const ncBySlug = Object.fromEntries(NEETCODE.map((p) => [p.slug, p]));
   const codingDone = bank.coding.filter((q) => q.nc && solved.has(q.nc)).length;
+  const cov = companyCoverage(id, progress, solved, r.score);
+  const allCov = useMemo(() => Object.fromEntries(COMPANIES.map((c) => [c.id, companyCoverage(c.id, progress, solved, readiness(c.id, stats).score).overall])), [progress, solved, stats]);
+  // Problems that several companies ask come first: one solve counts for all of them.
+  const coding = useMemo(() => bank.coding.map((q) => ({ q, shared: sharedWith(q, id) })).sort((a, b) => b.shared.length - a.shared.length), [bank, id]);
 
   return (
     <div>
@@ -36,7 +42,7 @@ export default function Companies({ progress, solved, initial, open }: Props) {
         {COMPANIES.map((c) => (
           <button key={c.id} onClick={() => setId(c.id)}
             className={`-mb-px border-b-2 px-3 py-2 transition-colors ${id === c.id ? 'border-violet-500 font-semibold text-zinc-100' : 'border-transparent text-zinc-500 hover:text-zinc-200'}`}>
-            {c.name}
+            {c.name}<span className="tnum ml-1.5 text-xs font-normal text-zinc-500">{Math.round(allCov[c.id] * 100)}%</span>
           </button>
         ))}
       </div>
@@ -44,7 +50,7 @@ export default function Companies({ progress, solved, initial, open }: Props) {
       <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-8">
           <div>
-            <p className="text-sm text-zinc-500">{tier === 'quant' ? 'Quant trading firm' : 'Big tech and frontier AI'}</p>
+            <p className="text-sm text-zinc-500">{tier === 'quant' ? 'Quant trading firm' : tier === 'bank' ? 'Investment bank engineering' : 'Big tech and frontier AI'}</p>
             <h2 className="mt-1 text-[32px] font-bold leading-tight tracking-[-0.02em] text-zinc-100">{COMPANY_NAME[id]}</h2>
             <p className="mt-2 max-w-[60ch] text-lg leading-relaxed text-zinc-300">{pb.tagline}</p>
             <div className="mt-5 inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-0.5">
@@ -59,8 +65,9 @@ export default function Companies({ progress, solved, initial, open }: Props) {
               <section>
                 <p className="mb-4 max-w-[65ch] leading-relaxed text-zinc-300">{bank.shape}</p>
                 <SectionTitle>Reported and closely matching problems</SectionTitle>
+                <p className="mb-3 text-sm text-zinc-500">Sorted so problems other companies also ask come first. Solving one counts for every company listed under it.</p>
                 <ul className="divide-y divide-zinc-800 rounded-md border border-zinc-800 bg-zinc-900">
-                  {bank.coding.map((q) => {
+                  {coding.map(({ q, shared }) => {
                     const nc = q.nc ? ncBySlug[q.nc] : undefined;
                     const done = q.nc ? solved.has(q.nc) : false;
                     return (
@@ -69,6 +76,7 @@ export default function Companies({ progress, solved, initial, open }: Props) {
                         <a href={nc ? nc.url : q.url} target="_blank" rel="noreferrer" className="font-medium text-zinc-100 hover:underline">{q.name}</a>
                         <span className="text-xs text-zinc-500">{nc ? `NeetCode · ${nc.difficulty}` : 'LeetCode'}</span>
                         <span className="w-full pl-[30px] text-sm text-zinc-400 sm:w-auto sm:flex-1 sm:pl-0 sm:text-right">{q.why}</span>
+                        {shared.length > 0 && <span className="w-full pl-[30px] text-xs text-zinc-500">Also asked at {shared.map((s) => COMPANY_NAME[s]).join(', ')}</span>}
                       </li>
                     );
                   })}
@@ -158,6 +166,36 @@ export default function Companies({ progress, solved, initial, open }: Props) {
         </div>
 
         <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+          <Card className="p-5">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-lg font-semibold text-zinc-100">What you've covered</h3>
+              <span className="tnum text-3xl font-bold text-zinc-100"><span className="hl">{Math.round(cov.overall * 100)}%</span></span>
+            </div>
+            <p className="mb-4 mt-1 text-sm text-zinc-500">Their reported problems solved, the patterns those problems use, and your drill readiness.</p>
+            <div className="mb-1 flex justify-between text-sm"><span className="text-zinc-200">Reported problems solved</span><span className="tnum text-zinc-500">{cov.coding.done}/{cov.coding.total}</span></div>
+            <Bar value={cov.coding.total ? cov.coding.done / cov.coding.total : 0} color="bg-amber-500" />
+            <h4 className="mb-2 mt-4 text-sm font-medium text-zinc-200">Patterns {COMPANY_NAME[id]} uses</h4>
+            <div className="space-y-2">
+              {cov.lessons.map((l) => (
+                <button key={l.id} onClick={() => onLearn(l.id)} className="block w-full text-left">
+                  <div className="mb-1 flex justify-between text-sm"><span className="text-zinc-300 hover:text-zinc-100">{l.name}</span><span className="tnum text-zinc-500">{Math.round(l.score * 100)}%</span></div>
+                  <Bar value={l.score} color={l.score >= 0.75 ? 'bg-emerald-500' : 'bg-violet-500'} />
+                </button>
+              ))}
+            </div>
+            {cov.overlap.length > 0 && (
+              <>
+                <h4 className="mb-2 mt-4 text-sm font-medium text-zinc-200">This prep also covers</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {cov.overlap.map((o) => (
+                    <button key={o.id} onClick={() => setId(o.id)} className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100">
+                      {COMPANY_NAME[o.id]} <span className="text-zinc-500">{o.shared} shared</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </Card>
           <Card className="p-5">
             <div className="flex items-baseline justify-between">
               <h3 className="text-lg font-semibold text-zinc-100">Your readiness</h3>

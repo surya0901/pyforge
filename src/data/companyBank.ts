@@ -308,6 +308,69 @@ export const BANKS: Bank[] = [
   },
 ];
 
+BANKS.push(
+  {
+    id: 'goldman',
+    shape: 'HackerRank OA (two coding questions, occasionally hard, plus math for some tracks), a HireVue behavioral, then a Superday of two or more 45 minute rounds mixing LeetCode style questions, resume deep dives and sometimes system design.',
+    coding: [
+      { name: 'Two Sum', nc: 'two-integer-sum', why: 'Hash map warm up, array questions are common' },
+      { name: 'Reverse Linked List', nc: 'reverse-a-linked-list', why: 'A linked list plus an array question was reported for Superday' },
+      { name: 'Valid Parentheses', nc: 'validate-parentheses', why: 'Stack questions were reported' },
+      { name: 'Gas Station', nc: 'gas-station', why: 'Reported by name' },
+      { name: 'Best Time to Buy and Sell Stock', nc: 'buy-and-sell-crypto', why: 'Finance flavored favorite' },
+      { name: 'Merge Intervals', nc: 'merge-intervals', why: 'Common array question' },
+      { name: 'LRU Cache', nc: 'lru-cache', why: 'Design style coding' },
+      { name: 'Trapping Rain Water', nc: 'trapping-rain-water', why: 'Hard OA practice' },
+      { name: 'Longest Substring Without Repeating Characters', nc: 'longest-substring-without-duplicates', why: 'Sliding window' },
+    ],
+    build: [
+      { name: 'How would you design a database backup pipeline?', why: 'Reported Superday design question' },
+      { name: 'OS questions: processes vs threads, memory', why: 'Reported alongside a stack question' },
+    ],
+    behavioral: [
+      { q: 'Walk me through your resume.', tests: 'A crisp 2 minute narrative', reported: true },
+      { q: 'How would you welcome a new member onto the team?', tests: 'Teamwork and culture', reported: true },
+      { q: 'Why Goldman Sachs, and why engineering at a bank?', tests: 'Motivation' },
+      { q: 'Tell me about a time you had to deliver under a tight deadline.', tests: 'Ownership, client service' },
+    ],
+    sources: [
+      { label: 'Glassdoor: Goldman Sachs engineering interviews', url: 'https://www.glassdoor.com/Interview/Goldman-Sachs-Interview-E2800-RVW61540897.htm' },
+      { label: 'Taro: Goldman Sachs SWE summer analyst', url: 'https://www.jointaro.com/interviews/companies/goldman-sachs/experiences/software-engineering-summer-analyst-warsaw-masovia-february-1-2025-accepted-offer-positive-235e0ef4/' },
+      { label: 'Interview Query: Goldman Sachs SWE', url: 'https://www.interviewquery.com/interview-guides/goldman-sachs-software-engineer' },
+      { label: 'LeetCode Discuss: GS New Analyst offer', url: 'https://leetcode.com/discuss/interview-experience/885730/goldman-sachs-new-analyst-2021-engineering-salt-lake-city-utah-oct-2020-offer/' },
+    ],
+  },
+  {
+    id: 'jpmorgan',
+    shape: 'HackerRank OA with two coding questions, a HireVue with behavioral questions (sometimes coding where you record your reasoning), then Code for Good or a Superday with one technical and one behavioral round of 45 minutes each.',
+    coding: [
+      { name: 'Best Time to Buy and Sell Stock', nc: 'buy-and-sell-crypto', why: 'Reported in a 2026 OA' },
+      { name: 'Decode Ways', nc: 'decode-ways', why: 'Reported in a HireVue coding round' },
+      { name: 'Climbing Stairs', nc: 'climbing-stairs', why: 'Fibonacci style questions were reported' },
+      { name: 'Valid Anagram', nc: 'is-anagram', why: 'String questions are common' },
+      { name: 'Group Anagrams', nc: 'anagram-groups', why: 'Hash map grouping' },
+      { name: 'Top K Frequent Elements', nc: 'top-k-elements-in-list', why: 'Filtering and counting, similar to a reported API query filter task' },
+      { name: 'Merge Intervals', nc: 'merge-intervals', why: 'Common medium' },
+    ],
+    build: [
+      { name: 'Given a string of API queries, filter them with given criteria', why: 'Reported coding task' },
+      { name: 'What is OOP? What is a database index?', why: 'Reported Superday questions' },
+      { name: 'Build a small full stack app with a team in a day (Code for Good)', why: 'Final round format for many candidates' },
+    ],
+    behavioral: [
+      { q: 'Tell me about your experience working on a project with a team.', tests: 'Teamwork', reported: true },
+      { q: 'What was the biggest challenge you overcame?', tests: 'Resilience', reported: true },
+      { q: 'How do you learn a new skill with no prior experience?', tests: 'Growth mindset', reported: true },
+      { q: 'Why JPMorgan Chase?', tests: 'Motivation' },
+    ],
+    sources: [
+      { label: 'Glassdoor: JPMorgan SWE interviews', url: 'https://static.glassdoor.com.ar/Interview/J-P-Morgan-Interview-E145-RVW59520888.htm' },
+      { label: 'Glassdoor: JPMorganChase new grad 2026', url: 'https://www.glassdoor.sg/Interview/JPMorganChase-Interview-E5224839-RVW103540848.htm' },
+      { label: 'Taro: JPMorgan SWE intern, Code for Good', url: 'https://www.jointaro.com/interviews/companies/jpmorgan-chase/experiences/software-engineering-intern-plano-texas-october-1-2025-no-offer-positive-2c70c6ba' },
+    ],
+  },
+);
+
 /** Questions every company asks in some form. */
 export const GENERAL_BEHAVIORAL: BehavioralQ[] = [
   { q: 'Tell me about yourself.', tests: '90-second story: now, two highlights, why this role' },
