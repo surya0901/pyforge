@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Paper notebook (default). Values are "r g b" so Tailwind alpha works. */
+:root {
+  color-scheme: light;
+  /* ink: 950 = page, 900 = sheet, 800 = rule lines ... 50 = darkest ink */
+  --ink-950: 238 242 240; --ink-900: 251 252 250; --ink-800: 214 221 226; --ink-700: 183 194 203;
+  --ink-600: 146 158 170; --ink-500: 104 117 133; --ink-400: 76 89 105; --ink-300: 52 64 80;
+  --ink-200: 31 43 66; --ink-100: 22 33 55; --ink-50: 12 21 40;
+  /* Python blue */
+  --py-50: 232 241 250; --py-100: 205 224 243; --py-200: 28 72 118; --py-300: 38 92 148; --py-400: 44 102 160;
+  --py-500: 55 118 171; --py-600: 46 101 150; --py-700: 37 83 125; --py-800: 29 66 100; --py-900: 22 50 77; --py-950: 14 33 52;
+  /* highlighter yellow: 500/600 are the marker, 200-400 are readable text */
+  --hl-50: 255 250 222; --hl-100: 255 243 184; --hl-200: 108 80 0; --hl-300: 122 90 0; --hl-400: 138 102 0;
+  --hl-500: 255 212 59; --hl-600: 232 186 20; --hl-700: 190 150 10; --hl-800: 150 118 8; --hl-900: 110 86 6; --hl-950: 70 55 4;
+  --ok-50: 230 245 236; --ok-100: 200 233 214; --ok-200: 18 92 58; --ok-300: 24 108 68; --ok-400: 30 122 78;
+  --ok-500: 46 150 100; --ok-600: 34 128 84; --ok-700: 26 104 68; --ok-800: 20 82 54; --ok-900: 14 62 40; --ok-950: 8 40 26;
+  --pen-50: 252 234 232; --pen-100: 248 210 206; --pen-200: 150 30 24; --pen-300: 168 36 28; --pen-400: 186 44 34;
+  --pen-500: 210 64 54; --pen-600: 186 48 40; --pen-700: 150 38 32; --pen-800: 120 30 26; --pen-900: 90 22 20; --pen-950: 60 14 12;
+  --sky-50: 228 244 250; --sky-100: 200 232 244; --sky-200: 16 86 118; --sky-300: 20 98 134; --sky-400: 26 110 150;
+  --sky-500: 46 146 190; --sky-600: 34 124 164; --sky-700: 28 102 136; --sky-800: 22 80 108; --sky-900: 16 60 80; --sky-950: 10 40 54;
+  --or-50: 252 238 226; --or-100: 248 220 196; --or-200: 140 64 14; --or-300: 160 74 18; --or-400: 178 84 24;
+  --or-500: 214 112 44; --or-600: 190 94 32; --or-700: 156 76 26; --or-800: 124 60 20; --or-900: 92 44 14; --or-950: 60 28 8;
+  --grid: 205 218 230;
+}
+
+/* Night desk */
+.dark {
+  color-scheme: dark;
+  --ink-950: 13 22 37; --ink-900: 19 31 51; --ink-800: 36 51 76; --ink-700: 52 69 98;
+  --ink-600: 78 95 124; --ink-500: 115 132 160; --ink-400: 155 170 192; --ink-300: 192 203 218;
+  --ink-200: 220 227 236; --ink-100: 238 242 247; --ink-50: 248 250 252;
+  --py-50: 20 36 60; --py-100: 26 48 80; --py-200: 186 214 240; --py-300: 150 192 232; --py-400: 118 168 218;
+  --py-500: 82 140 200; --py-600: 55 118 171; --py-700: 46 101 150; --py-800: 37 83 125; --py-900: 29 66 100; --py-950: 22 50 77;
+  --hl-200: 255 230 140; --hl-300: 255 218 96; --hl-400: 255 212 59;
+  --ok-200: 168 230 196; --ok-300: 124 214 166; --ok-400: 88 196 140; --ok-500: 60 170 116;
+  --pen-200: 255 190 184; --pen-300: 255 150 140; --pen-400: 246 112 100; --pen-500: 226 84 72;
+  --sky-200: 170 222 244; --sky-300: 128 204 236; --sky-400: 92 182 222;
+  --or-200: 255 204 160; --or-300: 250 170 110; --or-400: 236 140 76;
+  --grid: 26 40 62;
+}
+
+html, body { font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; }
+body {
+  background-color: rgb(var(--ink-950));
+  background-image:
+    linear-gradient(rgb(var(--grid) / 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--grid) / 0.55) 1px, transparent 1px);
+  background-size: 24px 24px;
+  font-feature-settings: 'ss01';
+}
+.tnum { font-variant-numeric: tabular-nums; }
+::selection { background: rgb(var(--hl-500) / 0.55); color: inherit; }
+:focus-visible { outline: 2px solid rgb(var(--py-500)); outline-offset: 2px; border-radius: 4px; }
+select option, select optgroup { background: rgb(var(--ink-900)); color: rgb(var(--ink-100)); }
+
+/* The one signature mark: a hand-drawn highlighter swipe. */
+.hl {
+  background-image: linear-gradient(100deg, rgb(var(--hl-500) / 0) 0.5%, rgb(var(--hl-500) / 0.75) 2%, rgb(var(--hl-500) / 0.6) 96%, rgb(var(--hl-500) / 0) 99%);
+  background-size: 100% 0.62em;
+  background-repeat: no-repeat;
+  background-position: 0 88%;
+  padding: 0 0.15em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.dark .hl { background-image: linear-gradient(100deg, rgb(var(--hl-500) / 0) 0.5%, rgb(var(--hl-500) / 0.35) 2%, rgb(var(--hl-500) / 0.28) 96%, rgb(var(--hl-500) / 0) 99%); }
+
+/* Red-pen squiggle for wrong answers */
+.pen {
+  text-decoration: underline wavy rgb(var(--pen-500));
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+/* Ruled index card */
+.index-card {
+  background-color: rgb(var(--ink-900));
+  background-image:
+    linear-gradient(90deg, transparent 52px, rgb(var(--pen-500) / 0.45) 52px, rgb(var(--pen-500) / 0.45) 53.5px, transparent 53.5px),
+    repeating-linear-gradient(transparent 0 31px, rgb(var(--py-500) / 0.16) 31px 32px);
+  background-position: 0 0, 0 58px;
+  box-shadow: 0 1px 0 rgb(var(--ink-800)), 0 18px 30px -18px rgb(var(--ink-50) / 0.35);
+}
+.dark .index-card {
+  background-image:
+    linear-gradient(90deg, transparent 52px, rgb(var(--pen-500) / 0.35) 52px, rgb(var(--pen-500) / 0.35) 53.5px, transparent 53.5px),
+    repeating-linear-gradient(transparent 0 31px, rgb(var(--py-400) / 0.12) 31px 32px);
+}
+.flip { transition: transform 0.45s cubic-bezier(.2,.7,.2,1); transform-style: preserve-3d; }
+.flip.on { transform: rotateY(180deg); }
+.face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.face.back { transform: rotateY(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .flip { transition: none; }
+  * { scroll-behavior: auto !important; }
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--ink-700)); border-radius: 8px; border: 2px solid rgb(var(--ink-950)); }
+::-webkit-scrollbar-track { background: transparent; }
