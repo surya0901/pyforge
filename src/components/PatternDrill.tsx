@@ -20,6 +20,16 @@ interface Props {
 const SESSION = 10;
 const SAVE_PREFIX = 'pyforge.finder.session.v2.';
 const ANSWERS = 'pyforge.finder.answers';
+const DONE = 'pyforge.finder.sessionsDone';
+export const finderSessionsDone = () => getLocal<number[]>(DONE, []);
+/** Where your current pattern finder session is: question number and length. */
+export function finderSessionNow(): { pos: number; len: number } | null {
+  try {
+    const k = Object.keys(localStorage).filter((x) => x.startsWith(SAVE_PREFIX));
+    const live = k.map((x) => getLocal<Saved | null>(x, null)).filter((x): x is Saved => !!x && !x.summary).sort((a, b) => b.savedAt - a.savedAt)[0];
+    return live ? { pos: live.log.length, len: live.ids.length } : null;
+  } catch { return null; }
+}
 /** Every answer you give, so the daily checklist counts answers (retries included), not distinct problems. */
 export const finderAnswers = () => getLocal<{ at: number; id: string; right: boolean }[]>(ANSWERS, []);
 const TARGETS = [{ s: 0, label: 'No target' }, { s: 60, label: '60 s' }, { s: 90, label: '90 s' }, { s: 120, label: '2 min' }];
@@ -156,7 +166,11 @@ export default function PatternDrill({ queue, progress, filterId, onResult, onLe
   };
 
   const next = () => {
-    if (s.pos + 1 >= s.ids.length) { setS((x) => ({ ...x, summary: true })); return; }
+    if (s.pos + 1 >= s.ids.length) {
+      setLocal(DONE, [...finderSessionsDone().slice(-99), Date.now()]);
+      setS((x) => ({ ...x, summary: true }));
+      return;
+    }
     goTo({ pos: s.pos + 1 });
   };
   const newSession = () => { const f = fresh(filterId, queue, progress, true); start.current = Date.now(); setSecs(0); setS(f); };

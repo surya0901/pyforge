@@ -8,7 +8,7 @@ import { getLocal, setLocal, today } from '../lib/storage';
 import type { Mode, Progress } from '../types';
 import { Card } from './ui';
 import { blueprintLog, nextBlueprint } from './BlueprintBuilder';
-import { finderAnswers } from './PatternDrill';
+import { finderAnswers, finderSessionNow, finderSessionsDone } from './PatternDrill';
 import { nextProblems } from './StudyPath';
 
 interface FeedJob { id: string; company: string; title: string; location: string; url: string; posted?: string; ageDays?: number; tier: 'target' | 'big' | 'other' }
@@ -53,7 +53,9 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const start = new Date(); start.setHours(0, 0, 0, 0);
   const seenToday = (pred: (id: string) => boolean) => Object.entries(progress.cards).filter(([id, c]) => pred(id) && c.lastSeen >= start.getTime()).length;
   // Counts every answer today, mid-session included, so you never have to finish a whole session to tick this.
-  const finderToday = finderCountToday(progress, start.getTime());
+  // Ticks when you finish one full session today (its length is whatever the session has).
+  const finderSessionToday = finderSessionsDone().some((t) => t >= start.getTime()) || finderCountToday(progress, start.getTime()) >= 10;
+  const sessionNow = finderSessionNow();
   const cardsToday = seenToday((id) => id.startsWith('fc-'));
   const oaToday = getLocal<{ at: number }[]>('pyforge.oa.history', []).filter((h) => h.at >= start.getTime()).length;
   const lesson = LESSONS.find((l) => l.id === lessonId)!;
@@ -72,8 +74,8 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
       action: <button onClick={() => onLearn(lesson.id)} className="link">Read lesson</button> },
     { id: 'blueprint', mins: 20, title: 'Blueprint builder: one problem, then its blind pass', detail: 'Type the solution step by step with hints, then type it again from just the function line. This is the fix for freezing on a blank editor.', done: bpToday.some((h) => h.blind) || state.manual.blueprint, auto: true,
       action: <button onClick={() => open('blueprint', { focus: bpNext.id })} className="link">Open {bpNext.title}</button>, progress: `${Math.min(bpToday.length, 2)}/2 passes` },
-    { id: 'finder', mins: 15, title: 'Pattern finder: 10 questions', detail: `Name the approach for real problems. Every answer counts, so ${Math.max(0, 10 - finderToday) || 'no'} more to go${finderToday >= 10 ? ' today' : ''}. You don't need to finish a whole session.`, done: finderToday >= 10 || state.manual.finder, auto: true,
-      action: <button onClick={() => open('pattern')} className="link">Start</button>, progress: `${Math.min(finderToday, 10)}/10` },
+    { id: 'finder', mins: 15, title: 'Pattern finder: one session', detail: finderSessionToday ? 'Done: you finished a full session today.' : sessionNow && sessionNow.pos > 0 ? `You're ${sessionNow.pos} of ${sessionNow.len} questions into your session. Finish it to tick this.` : `One session is ${sessionNow?.len ?? 10} questions, with a stopwatch report at the end.`, done: finderSessionToday || state.manual.finder, auto: true,
+      action: <button onClick={() => open('pattern')} className="link">{sessionNow && sessionNow.pos > 0 && !finderSessionToday ? 'Continue' : 'Start'}</button>, progress: finderSessionToday ? '1/1 session' : `${sessionNow?.pos ?? 0}/${sessionNow?.len ?? 10}` },
     { id: 'oa', mins: 25, title: 'Mock OA: one timed set', detail: 'The 20 minute debugging section on weekdays, a full 2 problem OA on weekends.', done: oaToday > 0 || state.manual.oa, auto: true,
       action: <button onClick={() => open('oa')} className="link">Open Mock OA</button> },
     { id: 'cards', mins: 10, title: 'Flashcards: 15 cards', detail: 'Due cards first. Mix in C++ and systems if you are targeting HRT, Citadel or Nvidia.', done: cardsToday >= 15 || state.manual.cards, auto: true,
