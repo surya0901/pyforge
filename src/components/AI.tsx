@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { COMPANY_NAME } from '../data/meta';
 import { NC_SECTIONS, NEETCODE } from '../data/neetcode';
 import { areaStats } from '../lib/coach';
-import { API_KEY, getSample, type SampleFn } from '../lib/cloud';
+import { API_KEY, GEMINI_KEY, getSample, type SampleFn } from '../lib/cloud';
 import type { CompanyId, Progress } from '../types';
 import { Button, Card } from './ui';
 
@@ -197,27 +197,40 @@ function LocalGrade({ question, answer, setAnswer }: { question: string; answer:
   );
 }
 
-/** Optional: lets the website use Claude for grading and coaching with your own Anthropic API key. */
+/** Optional: lets the website use Claude or Gemini with your own API key. */
 export function ClaudeKeyCard() {
-  const [key, setKey] = useState(() => { try { return localStorage.getItem(API_KEY) ?? ''; } catch { return ''; } });
+  const read = (k: string) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
+  const [keys, setKeys] = useState({ anth: read(API_KEY), gem: read(GEMINI_KEY) });
+  const [prov, setProv] = useState<'gem' | 'anth'>('gem');
   const [draft, setDraft] = useState('');
   const [msg, setMsg] = useState('');
-  const save = () => { try { localStorage.setItem(API_KEY, draft.trim()); setKey(draft.trim()); setDraft(''); setMsg('Saved. Reload the page to switch grading to Claude.'); } catch { setMsg('This browser blocked saving it.'); } };
-  const remove = () => { try { localStorage.removeItem(API_KEY); } catch { /* ignore */ } setKey(''); setMsg('Removed.'); };
+  const save = () => {
+    const k = draft.trim();
+    try { localStorage.setItem(prov === 'anth' ? API_KEY : GEMINI_KEY, k); } catch { setMsg('This browser blocked saving it.'); return; }
+    setKeys((x) => ({ ...x, [prov]: k })); setDraft(''); setMsg('Saved. Reload the page to turn on AI feedback.');
+  };
+  const remove = (p: 'anth' | 'gem') => { try { localStorage.removeItem(p === 'anth' ? API_KEY : GEMINI_KEY); } catch { /* ignore */ } setKeys((x) => ({ ...x, [p]: '' })); setMsg('Removed.'); };
+  const valid = prov === 'anth' ? draft.trim().startsWith('sk-ant') : draft.trim().length > 20;
   return (
     <Card className="p-5">
-      <h3 className="flex items-center gap-2 font-semibold text-zinc-100"><Sparkles size={16} className="text-amber-400" />Claude grading (optional)</h3>
-      <p className="mt-1 text-sm text-zinc-400">On the website, flashcards and coaching are checked on your device by key ideas. Add your own Anthropic API key and Claude grades instead, by meaning, and explains what to fix. The key stays in this browser and is only sent to api.anthropic.com. Each graded card costs a fraction of a cent.</p>
-      {key ? (
-        <div className="mt-3 flex items-center gap-3 text-sm"><span className="text-emerald-300">Key saved (…{key.slice(-4)})</span><Button variant="ghost" onClick={remove}>Remove</Button></div>
-      ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <input type="password" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="sk-ant-…" className="min-w-[240px] flex-1 rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-violet-500" />
-          <Button onClick={save} disabled={!draft.trim().startsWith('sk-')}>Save key</Button>
+      <h3 className="flex items-center gap-2 font-semibold text-zinc-100"><Sparkles size={16} className="text-amber-400" />AI feedback (optional)</h3>
+      <p className="mt-1 text-sm text-zinc-400">With an API key, the website uses AI to review the plan you write in Blueprint builder, coach each step, and grade flashcards by meaning. A Gemini key from Google AI Studio has a free tier. The key stays in this browser and is only sent to that AI provider.</p>
+      {(keys.gem || keys.anth) && (
+        <div className="mt-3 space-y-1 text-sm">
+          {keys.gem && <div className="flex items-center gap-3"><span className="text-emerald-300">Gemini key saved (…{keys.gem.slice(-4)})</span><button className="link text-xs" onClick={() => remove('gem')}>Remove</button></div>}
+          {keys.anth && <div className="flex items-center gap-3"><span className="text-emerald-300">Claude key saved (…{keys.anth.slice(-4)}), used first</span><button className="link text-xs" onClick={() => remove('anth')}>Remove</button></div>}
         </div>
       )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select value={prov} onChange={(e) => setProv(e.target.value as 'gem' | 'anth')} className="rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-200">
+          <option value="gem">Gemini (free tier)</option>
+          <option value="anth">Claude</option>
+        </select>
+        <input type="password" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={prov === 'anth' ? 'sk-ant-…' : 'Gemini API key'} className="min-w-[200px] flex-1 rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-violet-500" />
+        <Button onClick={save} disabled={!valid}>Save key</Button>
+      </div>
       {msg && <p className="mt-2 text-xs text-zinc-500">{msg}</p>}
-      <p className="mt-2 text-xs text-zinc-500">Get a key at console.anthropic.com. You don't need one on the claude.ai copy of pyforge, where Claude is built in.</p>
+      <p className="mt-2 text-xs text-zinc-500">Gemini keys: aistudio.google.com/apikey. Claude keys: console.anthropic.com. On the claude.ai copy of pyforge, Claude is built in and you need no key.</p>
     </Card>
   );
 }

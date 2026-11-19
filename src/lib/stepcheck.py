@@ -870,3 +870,86 @@ def pyforge_steps(payload):
         steps.append(st)
     out = {"steps": steps, "commented": True}
     return json.dumps(out)
+
+
+# ───────────────────────── Is it optimal? ─────────────────────────
+import time as _time
+
+
+def _grow(args, n):
+    """Make the test input about n long: repeat flat lists and strings, keep numbers. None if it can't be grown."""
+    out, grew = [], False
+    for a in args:
+        if isinstance(a, list) and a and all(isinstance(x, (int, float, str)) for x in a):
+            k = n // len(a) + 1
+            if all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in a):
+                # keep values distinct-ish so dict/set solutions don't collapse
+                out.append([x + i * 1000003 for i in range(k) for x in a][:n]); grew = True
+            else:
+                out.append((a * k)[:n]); grew = True
+        elif isinstance(a, str) and a:
+            out.append((a * (n // len(a) + 1))[:n]); grew = True
+        else:
+            out.append(a)
+    return out if grew else None
+
+
+def pyforge_perf(payload):
+    """Times your solution against the blueprint's on a growing input. Slower by a lot means a worse time complexity."""
+    p = json.loads(payload)
+    call, tests, postlude = p["call"], p["tests"], p.get("postlude") or ""
+    def load(src):
+        ns = {"__name__": "solution"}
+        exec(compile(src, "solution.py", "exec"), ns)
+        if postlude:
+            exec(compile(postlude, "helpers.py", "exec"), ns)
+        return ns[call]
+    try:
+        ref, mine = load(p["ref"]), load(p["user"])
+    except Exception as e:  # noqa: BLE001
+        return json.dumps({"skip": f"{type(e).__name__}"})
+    def clock(fn, args, budget):
+        t0 = _time.perf_counter()
+        try:
+            fn(*copy.deepcopy(args))
+        except Exception:  # noqa: BLE001
+            return None
+        return _time.perf_counter() - t0
+    # pick the test that makes the blueprint work hardest (no early exit)
+    best, bt = None, -1.0
+    for t in tests:
+        a = _grow(t, 2000)
+        if a is None:
+            continue
+        tt = clock(ref, a, 1.0)
+        if tt is not None and tt > bt:
+            best, bt = t, tt
+    if best is None:
+        return json.dumps({"skip": "input can't be scaled"})
+    base = best
+    n, rt, args = 200, 0.0, None
+    while n <= 40000:
+        a = _grow(base, n)
+        if a is None:
+            return json.dumps({"skip": "input can't be scaled"})
+        t = clock(ref, a, 1.0)
+        if t is None:
+            return json.dumps({"skip": "reference failed on scaled input"})
+        args, rt = a, t
+        if t > 0.008:
+            break
+        n *= 2
+    ut = clock(mine, args, 3.0)
+    if ut is None:
+        return json.dumps({"skip": "your code failed on a bigger input"})
+    # Growth: how much slower each one gets when the input is 4x bigger (N: ~4x, N log N: ~5x, N^2: ~16x)
+    grow_slow = False
+    if ut < 1.2:
+        big = _grow(base, n * 4)
+        rt4, ut4 = clock(ref, big, 2.0), clock(mine, big, 4.0)
+        if rt4 and ut4:
+            rg, ug = rt4 / max(rt, 1e-5), ut4 / max(ut, 1e-5)
+            grow_slow = ug > 2.2 * rg and ug > 9
+            n, rt, ut = n * 4, rt4, ut4
+    ratio = ut / max(rt, 1e-4)
+    return json.dumps({"n": n, "ref": round(rt, 4), "mine": round(ut, 4), "ratio": round(ratio, 1), "slow": (ratio > 8 and ut > 0.15) or grow_slow})

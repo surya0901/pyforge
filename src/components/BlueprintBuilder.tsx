@@ -2,9 +2,11 @@ import { Check, CheckCircle2, ChevronLeft, Circle, EyeOff, Lightbulb, Play, Rota
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BLUEPRINTS, IDIOMS } from '../data/blueprints';
 import { LESSONS } from '../data/lessons';
-import { checkSteps, runTests, warmUp, type RunResult, type StepCheck, type StepReport } from '../lib/pyrunner';
+import { checkPerf, checkSteps, runTests, warmUp, type PerfResult, type RunResult, type StepCheck, type StepReport } from '../lib/pyrunner';
 import type { SampleFn } from '../lib/cloud';
 import { useSample } from './AI';
+import { coachRun, OwnStepCard, PlanWriter, type PlanReview, type PlanStep } from './OwnPlan';
+import { aiName } from '../lib/cloud';
 import { logMistake, SLIP_KINDS, blueprintForWeakness } from '../lib/mistakes';
 import { getLocal, setLocal } from '../lib/storage';
 import type { Blueprint } from '../types';
@@ -15,6 +17,7 @@ import { Button, Card, PageTitle } from './ui';
 const STATUS = 'pyforge.blueprints'; // per problem: when it was passed with hints and when blind
 const IDIOM_HINTS = 'pyforge.idiomHints'; // idiom id -> times a hint was needed for it
 const LOG = 'pyforge.blueprint.log'; // passes, for the daily checklist
+const MODE_KEY = 'pyforge.blueprint.mode'; // own plan or blueprint steps
 
 export interface BpStatus { guided?: number; blind?: number; clean?: boolean; hints?: number }
 type Level = 0 | 1 | 2 | 3;
@@ -230,13 +233,21 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
   const prev = getStatus()[p.id];
   const startBlind = !!prev?.guided && !prev?.blind;
   const [blind, setBlind] = useState(startBlind);
-  const [code, setCode] = useState(() => starter(p, startBlind));
+  const ownInit = !startBlind && getLocal<string>(MODE_KEY, 'own') === 'own';
+  const [code, setCode] = useState(() => (ownInit ? `${p.signature}\n    \n` : starter(p, startBlind)));
   const [levels, setLevels] = useState<Level[]>(() => p.steps.map(() => 0));
   const [busy, setBusy] = useState(false);
   const [r, setR] = useState<RunResult>();
   const [pasteNote, setPasteNote] = useState(false);
   const [passed, setPassed] = useState(false);
   const [check, setCheck] = useState<StepCheck>();
+  // "own" = you write the plan in your own words first; "blueprint" = use the given steps.
+  const [own, setOwn] = useState<boolean>(ownInit);
+  const [ownSteps, setOwnSteps] = useState<PlanStep[] | null>(null);
+  const [ownReview, setOwnReview] = useState<PlanReview | null>(null);
+  const [notes, setNotes] = useState<Record<number, { ok: boolean; note: string }>>({});
+  const [coach, setCoach] = useState('');
+  const [perf, setPerf] = useState<PerfResult | null>(null);
   const [lastGood, setLastGood] = useState<StepReport[]>();
   const [checking, setChecking] = useState(false);
   const seq = useRef(0);
@@ -258,11 +269,35 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
 
   // Check the logic a moment after you stop typing.
   useEffect(() => {
+    if (own) return; // your own plan is judged by the tests, the speed check and AI, not the blueprint's steps
     const t = setTimeout(() => runCheck(code), 900);
     return () => clearTimeout(t);
-  }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [code, own]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const reset = (b: boolean) => { setBlind(b); setCode(starter(p, b)); setLevels(p.steps.map(() => 0)); setR(undefined); setPassed(false); setCheck(undefined); setLastGood(undefined); };
+  const useOwn = (on: boolean) => {
+    setLocal(MODE_KEY, on ? 'own' : 'blueprint');
+    setOwn(on); setOwnSteps(null); setOwnReview(null); setNotes({}); setCoach(''); setPerf(null);
+    setCode(on ? `${p.signature}\n    \n` : starter(p, false)); setR(undefined); setPassed(false); setCheck(undefined); setLastGood(undefined);
+  };
+  const startOwn = (steps: PlanStep[], review: PlanReview) => {
+    setOwnSteps(steps); setOwnReview(review); setNotes({}); setCoach('');
+    setCode(`${p.signature}\n${steps.map((x, i) => `    # Step ${i + 1}: ${x.text}`).join('\n')}\n`);
+  };
+  const insertAt = (i: number, tmpl: string) => {
+    const { at, end, body } = stepRegion(code, i);
+    if (body.length) return;
+    const lines = code.split('\n');
+    if (at >= 0) { let k = end; while (k > at + 1 && !lines[k - 1].trim()) k--; lines.splice(k, 0, indent(tmpl)); setCode(lines.join('\n')); }
+  };
+  const askStep = async (i: number) => {
+    if (!sample || !ownSteps) return '';
+    try {
+      const r = await sample(`You are a patient Python coach. Problem: ${p.title}. ${p.statement}\nThe student's own plan:\n${ownSteps.map((x, k) => `${k + 1}. ${x.text}`).join('\n')}\nTheir code so far:\n${code}\n\nThey want help with step ${i + 1}: "${ownSteps[i].text}". In under 80 words, plain text: say what this step must do, point at what's off in their lines for it (if anything), and give the Python syntax they need. Show at most one line of code.`, { cache: false });
+      return r.text.trim();
+    } catch { return 'Could not reach the AI right now.'; }
+  };
+
+  const reset = (b: boolean) => { if (b) { setOwn(false); setOwnSteps(null); } setPerf(null); setNotes({}); setCoach(''); setBlind(b); setCode(starter(p, b)); setLevels(p.steps.map(() => 0)); setR(undefined); setPassed(false); setCheck(undefined); setLastGood(undefined); };
 
   function hint(i: number) {
     const next = Math.min(3, levels[i] + 1) as Level;
@@ -289,7 +324,8 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
   }
 
   async function run() {
-    const checked = runCheck(code);
+    const checked = own ? Promise.resolve({} as StepCheck) : runCheck(code);
+    setPerf(null);
     if (/____/.test(code)) { setR(undefined); return; }
     setBusy(true);
     const src = code + (p.postlude ? '\n\n' + p.postlude + '\n' : '');
@@ -308,6 +344,18 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
         if (st.status === 'error') kinds.add('logic:error');
       }
       for (const k of kinds) logMistake({ source: 'blueprint', kind: k, label: p.title, ref: p.id });
+    }
+    if (!ok && own && ownSteps && sample) {
+      // AI coach: which of YOUR steps is off
+      const failure = res.compileError ?? res.results.filter((t) => !t.ok).slice(0, 2).map((t, k) => `Test ${k + 1}: ${t.error ?? `got ${t.got}, expected ${t.expected}`}`).join('\n');
+      setCoach('Looking at your steps…');
+      const c = await coachRun(p, ownSteps, code, failure || 'tests failed', sample);
+      if (c) { setCoach(c.summary); setNotes(Object.fromEntries((c.steps ?? []).map((x) => [x.n - 1, { ok: !!x.ok, note: x.note }]))); } else setCoach('');
+    }
+    if (ok) {
+      setNotes({}); setCoach('');
+      // Correct is half of it: is it as fast as the optimal solution?
+      if (p.pattern !== 'backtracking') checkPerf({ user: src, ref: p.solution, call: p.func, tests: p.tests, postlude: p.postlude }).then(setPerf);
     }
     if (ok && !passed) {
       setPassed(true);
@@ -341,7 +389,7 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
       <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100">{p.title}</h2>
         <span className="text-sm text-zinc-500">{lessonName(p.pattern)} · {p.difficulty}</span>
-        <span className={`rounded-full px-2 py-0.5 text-xs ${blind ? 'bg-emerald-500/10 text-emerald-300' : 'bg-violet-500/10 text-violet-200'}`}>{blind ? 'Blind pass: no blueprint' : 'With blueprint'}</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs ${blind ? 'bg-emerald-500/10 text-emerald-300' : 'bg-violet-500/10 text-violet-200'}`}>{blind ? 'Blind pass: no blueprint' : own ? 'Your own plan' : 'With blueprint'}</span>
       </div>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
         {/* The steps scroll on their own so the editor stays in view. */}
@@ -351,8 +399,32 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
             <p className="mt-2 font-mono text-[13px] text-zinc-400">{p.example}</p>
             <a href={`https://neetcode.io/problems/${p.nc}`} target="_blank" rel="noreferrer" className="link mt-2 inline-block text-sm">NeetCode page and video</a>
           </Card>
+          {!blind && (
+            <div className="inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-0.5 text-sm">
+              <button onClick={() => !own && useOwn(true)} className={`rounded px-3 py-1.5 ${own ? 'bg-zinc-950 font-semibold text-zinc-100' : 'text-zinc-400 hover:text-zinc-100'}`}>My own plan</button>
+              <button onClick={() => own && useOwn(false)} className={`rounded px-3 py-1.5 ${!own ? 'bg-zinc-950 font-semibold text-zinc-100' : 'text-zinc-400 hover:text-zinc-100'}`}>Blueprint steps</button>
+            </div>
+          )}
           {blind ? (
             <BlindPanel p={p} check={check} ran={!!r} passed={passed} onBack={() => reset(false)} />
+          ) : own ? (
+            !ownSteps ? (
+              <PlanWriter p={p} sample={sample} onReady={startOwn} onCancel={() => useOwn(false)} />
+            ) : (
+              <>
+                {ownReview && (
+                  <Card className="p-3 text-sm">
+                    <span className="text-zinc-300">{ownReview.feedback}</span>{' '}
+                    <button className="link" onClick={() => { setOwnSteps(null); setNotes({}); setCoach(''); }}>Rewrite my plan</button>
+                  </Card>
+                )}
+                {coach && <Card className="border-violet-500/40 p-3 text-sm text-zinc-200"><span className="font-medium text-violet-200">{aiName()}: </span>{coach}</Card>}
+                <ol className="space-y-3">
+                  {ownSteps.map((x, i) => <OwnStepCard key={i} i={i} s={x} note={notes[i]} sample={sample} onInsert={(t) => insertAt(i, t)} onAsk={() => askStep(i)} />)}
+                </ol>
+                <p className="text-xs text-zinc-500">Your plan, your names. It's correct when the tests pass, and optimal when the speed check matches the best solution.</p>
+              </>
+            )
           ) : (
             <>
               <div className="flex items-center gap-3 text-sm">
@@ -395,11 +467,17 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
           {blanks && <p className="mt-3 text-sm text-zinc-400">Fill every <span className="font-mono">____</span> blank, then the tests can run.</p>}
           {busy && !r && <p className="mt-3 text-sm text-zinc-500">Starting Python the first time takes a few seconds…</p>}
           {r && <Results r={r} p={p} friendly={friendly} />}
+          {perf && !perf.skip && (
+            <Card className={`mt-3 p-4 ${perf.slow ? 'border-amber-500/40' : 'border-emerald-500/30'}`}>
+              <p className={`font-semibold ${perf.slow ? 'text-amber-300' : 'text-emerald-300'}`}>{perf.slow ? 'Correct, but not optimal yet' : 'Speed check: as fast as the optimal solution'}</p>
+              <p className="mt-1 text-sm text-zinc-300">{perf.timeout ? 'On a bigger input your code took more than 7 seconds while the optimal one is near instant. Look for a loop inside a loop, or a list where a set or dict would answer in O(1).' : perf.slow ? `On an input of ${perf.n?.toLocaleString()} items yours took ${perf.mine}s and the optimal solution ${perf.ref}s, about ${Math.round(perf.ratio ?? 0)}× slower. That usually means a worse time complexity, like a nested loop or searching a list with "in".` : `Tested on ${perf.n?.toLocaleString()} items: ${perf.mine}s vs ${perf.ref}s for the optimal solution.`}</p>
+            </Card>
+          )}
 
           {passed && (
             <Card className="mt-3 border-emerald-500/40 p-4">
-              <p className="font-semibold text-emerald-300">{blind ? 'Passed blind. This one is yours now.' : hintsUsed === 0 ? 'Passed with no hints.' : `Passed, using ${hintsUsed} hint level${hintsUsed === 1 ? '' : 's'}.`}</p>
-              <p className="mt-1 text-sm text-zinc-300">{blind ? 'Come back in a few days and do it blind once more. Speed comes from repeats.' : 'Now type it again with no blueprint. The second time is what moves it from copying to recall.'}</p>
+              <p className="font-semibold text-emerald-300">{perf?.slow ? 'Correct. Next: make it optimal.' : blind ? 'Passed blind. This one is yours now.' : own ? 'Your plan works.' : hintsUsed === 0 ? 'Passed with no hints.' : `Passed, using ${hintsUsed} hint level${hintsUsed === 1 ? '' : 's'}.`}</p>
+              <p className="mt-1 text-sm text-zinc-300">{perf?.slow ? 'Rewrite the plan with a faster idea, or switch to the blueprint steps to see the optimal one.' : blind ? 'Come back in a few days and do it blind once more. Speed comes from repeats.' : 'Now type it again with no plan at all. The second time is what moves it from copying to recall.'}</p>
               <div className="mt-3 flex gap-2">
                 {!blind && <Button onClick={() => reset(true)}><EyeOff size={14} />Start the blind pass</Button>}
                 <Button variant={blind ? 'primary' : 'ghost'} onClick={() => onNext(nextP.id)}>Next: {nextP.title}</Button>

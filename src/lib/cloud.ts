@@ -36,24 +36,49 @@ export const getDB = () => use<DB>('db');
  * Anthropic API key (saved only in this browser, sent only to api.anthropic.com).
  */
 export const API_KEY = 'pyforge.anthropicKey';
+export const GEMINI_KEY = 'pyforge.geminiKey';
 export const API_MODEL = 'claude-haiku-5-5';
+export const GEMINI_MODEL = 'gemini-flash-latest';
+const local = (k: string) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
+
+/** Which AI the site can use right now, for labels. */
+export function aiName(): string | null {
+  if (window.claude?.use) return 'Claude';
+  if (local(API_KEY)) return 'Claude';
+  if (local(GEMINI_KEY)) return 'Gemini';
+  return null;
+}
+
 export async function getSample(): Promise<SampleFn | null> {
   const built = await use<SampleFn>('sample');
   if (built) return built;
-  let key = '';
-  try { key = localStorage.getItem(API_KEY) ?? ''; } catch { /* storage blocked */ }
-  if (!key) return null;
+  const anth = local(API_KEY);
+  const gem = local(GEMINI_KEY);
+  if (!anth && !gem) return null;
   return async (input, opts) => {
     const messages = typeof input === 'string' ? [{ role: 'user', content: input }] : input;
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: (opts?.signal as AbortSignal | undefined) ?? undefined,
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: API_MODEL, max_tokens: 800, messages }),
-    });
-    if (!res.ok) { const e = new Error(`Claude API ${res.status}`) as Error & { code?: string }; e.code = res.status === 429 ? 'rate_limited' : 'api_error'; throw e; }
-    const j = await res.json();
-    const text = (j.content ?? []).map((b: { text?: string }) => b.text ?? '').join('');
+    const signal = (opts?.signal as AbortSignal | undefined) ?? undefined;
+    let text = '';
+    if (anth) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', signal,
+        headers: { 'content-type': 'application/json', 'x-api-key': anth, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: API_MODEL, max_tokens: 1200, messages }),
+      });
+      if (!res.ok) throw Object.assign(new Error(`Claude API ${res.status}`), { code: res.status === 429 ? 'rate_limited' : 'api_error' });
+      const j = await res.json();
+      text = (j.content ?? []).map((b: { text?: string }) => b.text ?? '').join('');
+    } else {
+      // Google Gemini: the key goes in a header, never in the URL
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+        method: 'POST', signal,
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': gem },
+        body: JSON.stringify({ contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }),
+      });
+      if (!res.ok) throw Object.assign(new Error(`Gemini API ${res.status}`), { code: res.status === 429 ? 'rate_limited' : 'api_error' });
+      const j = await res.json();
+      text = (j.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('');
+    }
     (opts?.onText as ((x: { text: string }) => void) | undefined)?.({ text });
     return { text };
   };

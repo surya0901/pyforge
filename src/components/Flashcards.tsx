@@ -3,7 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { resourcesForCard, videoSearch } from '../data/cardResources';
 import { gradeCard, keyIdeas, type Grade, type Verdict } from '../lib/cardGrade';
 import { logMistake } from '../lib/mistakes';
+import { aiName } from '../lib/cloud';
 import { useSample } from './AI';
+import { useSpeech } from '../lib/speech';
 import { COMPANY_NAME } from '../data/meta';
 import { DECKS, FLASHCARDS, type DeckId, type Flashcard } from '../data/flashcards';
 import { getLocal, mastery, setLocal } from '../lib/storage';
@@ -88,43 +90,6 @@ function DeckPicker({ progress, company, onPick }: { progress: Progress; company
 }
 
 type Phase = 'answer' | 'checking' | 'result';
-
-/** Speech to text in the browser (Chrome, Edge, Safari). Final words go to onFinal, live words to onInterim. */
-function useSpeech(onFinal: (t: string) => void) {
-  const Rec = (window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
-    ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition;
-  const rec = useRef<SpeechRec | null>(null);
-  const [on, setOn] = useState(false);
-  const [interim, setInterim] = useState('');
-  const [err, setErr] = useState('');
-  const cb = useRef(onFinal);
-  cb.current = onFinal;
-  const stop = () => { rec.current?.stop(); setOn(false); setInterim(''); };
-  const start = () => {
-    if (!Rec) { setErr('Voice input needs Chrome, Edge or Safari.'); return; }
-    setErr('');
-    const r = new Rec();
-    r.lang = 'en-US'; r.continuous = true; r.interimResults = true;
-    r.onresult = (e: SpeechEvent) => {
-      let live = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i];
-        if (res.isFinal) cb.current(res[0].transcript.trim());
-        else live += res[0].transcript;
-      }
-      setInterim(live);
-    };
-    r.onerror = (e: { error: string }) => { setErr(e.error === 'not-allowed' ? 'Microphone permission was blocked. Allow it in the address bar, then try again.' : `Voice input stopped (${e.error}).`); setOn(false); };
-    r.onend = () => { setOn(false); setInterim(''); };
-    rec.current = r;
-    r.start();
-    setOn(true);
-  };
-  useEffect(() => () => rec.current?.stop(), []);
-  return { supported: !!Rec, on, interim, err, start, stop };
-}
-interface SpeechRec { lang: string; continuous: boolean; interimResults: boolean; onresult: (e: SpeechEvent) => void; onerror: (e: { error: string }) => void; onend: () => void; start(): void; stop(): void }
-interface SpeechEvent { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] & { length: number } }
 
 const VERDICT: Record<Verdict, { label: string; cls: string; q: 0 | 1 | 2 }> = {
   right: { label: 'Right', cls: 'border-emerald-500/40 text-emerald-300', q: 2 },
@@ -236,14 +201,14 @@ function Session({ deck, company, progress, onResult, onExit }: { deck: DeckId |
             <button onClick={() => check(true)} className="text-sm text-zinc-500 hover:text-zinc-200">I don't know, show me</button>
           </div>
           {speech.err && <p className="mt-2 text-sm text-amber-300">{speech.err}</p>}
-          <p className="mt-2 text-xs text-zinc-500">{sample ? 'Claude grades your answer by meaning.' : 'Graded on this device by the key ideas you cover, not exact words. Add an Anthropic API key under Stats to have Claude grade instead.'}</p>
+          <p className="mt-2 text-xs text-zinc-500">{sample ? `${aiName() ?? 'AI'} grades your answer by meaning.` : 'Graded on this device by the key ideas you cover, not exact words. Add a free Gemini key under Stats to have AI grade by meaning instead.'}</p>
         </div>
       ) : grade && v && (
         <div className="mt-4 space-y-3">
           <Card className={`border p-4 ${v.cls.split(' ')[0]}`}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className={`text-lg font-semibold ${v.cls.split(' ')[1]}`}>{v.label}</span>
-              <span className="text-xs text-zinc-500">{grade.byAI ? 'Graded by Claude' : 'Auto-check by key ideas'}</span>
+              <span className="text-xs text-zinc-500">{grade.byAI ? `Graded by ${aiName() ?? 'AI'}` : 'Auto-check by key ideas'}</span>
             </div>
             <p className="mt-1 text-[15px] text-zinc-200">{grade.feedback}</p>
             {answer && <p className="mt-2 border-l-2 border-zinc-700 pl-3 text-sm text-zinc-400">You said: {answer}</p>}

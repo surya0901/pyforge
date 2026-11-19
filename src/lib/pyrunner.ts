@@ -96,6 +96,10 @@ self.onmessage = async (e) => {
       py.globals.set('__payload', payload);
       const out = py.runPython('pyforge_run(__payload)');
       self.postMessage({ id, ok: true, out });
+    } else if (type === 'perf') {
+      py.globals.set('__payload', payload);
+      const out = py.runPython('pyforge_perf(__payload)');
+      self.postMessage({ id, ok: true, out });
     } else if (type === 'steps') {
       py.globals.set('__payload', payload);
       const out = py.runPython('pyforge_steps(__payload)');
@@ -169,4 +173,15 @@ export async function checkSteps(payload: { user: string; ref: string; fname: st
   if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { timeout: true }; }
   if (!res.ok) return { fatal: res.error };
   return JSON.parse(res.out!) as StepCheck;
+}
+
+export interface PerfResult { n?: number; ref?: number; mine?: number; ratio?: number; slow?: boolean; skip?: string; timeout?: boolean }
+/** Your solution vs the blueprint's on a bigger input. A big gap means a worse time complexity. */
+export async function checkPerf(payload: { user: string; ref: string; call: string; tests: unknown[]; postlude: string }, timeoutMs = 7000): Promise<PerfResult> {
+  try { await warmUp(); } catch { return { skip: 'python' }; }
+  const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
+  const res = await Promise.race([call({ type: 'perf', payload: JSON.stringify(payload) }), timer]);
+  if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { timeout: true, slow: true }; }
+  if (!res.ok) return { skip: res.error };
+  return JSON.parse(res.out!) as PerfResult;
 }
