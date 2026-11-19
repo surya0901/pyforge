@@ -19,6 +19,9 @@ interface Props {
 
 const SESSION = 10;
 const SAVE_PREFIX = 'pyforge.finder.session.v2.';
+const ANSWERS = 'pyforge.finder.answers';
+/** Every answer you give, so the daily checklist counts answers (retries included), not distinct problems. */
+export const finderAnswers = () => getLocal<{ at: number; id: string; right: boolean }[]>(ANSWERS, []);
 const TARGETS = [{ s: 0, label: 'No target' }, { s: 60, label: '60 s' }, { s: 90, label: '90 s' }, { s: 120, label: '2 min' }];
 const fmtS = (x: number) => (x >= 60 ? `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}` : `${x.toFixed(0)}s`);
 const BY_ID = Object.fromEntries(PATTERN_DRILLS.map((e) => [e.id, e])) as Record<string, PatternExercise>;
@@ -65,8 +68,14 @@ function buildSession(queue: PatternExercise[], progress: Progress): string[] {
   const rest = queue.filter((e) => !due.includes(e) && !missedLast.includes(e))
     .map((e) => ({ e, w: (weak.get(e.answer) ?? 0.5) + (progress.cards[e.id] ? 0.3 : 0) + Math.random() * 0.25 }))
     .sort((a, b) => a.w - b.w).map((x) => x.e);
-  const order = [...missedLast, ...due, ...rest];
-  return [...new Set(order.map((e) => e.id))].slice(0, Math.min(SESSION, order.length));
+  const ids = [...new Set([...missedLast, ...due, ...rest].map((e) => e.id))].slice(0, SESSION);
+  // Fewer than 10 unlocked: fill the session with a second look at the ones you know least, so a session is always 10.
+  const weakest = [...ids].sort((a, b) => mastery(progress.cards[a]) - mastery(progress.cards[b]));
+  for (let i = 0; ids.length < SESSION && weakest.length; i++) {
+    const id = weakest[i % weakest.length];
+    if (ids[ids.length - 1] !== id || weakest.length === 1) ids.push(id);
+  }
+  return ids;
 }
 
 function makeOptions(ex: PatternExercise) {
@@ -123,6 +132,7 @@ export default function PatternDrill({ queue, progress, filterId, onResult, onLe
     const took = (Date.now() - start.current) / 1000;
     setSecs(took);
     onResult(ex.id, right ? (target && took <= target / 2 ? 3 : 2) : 0, right ? [] : ['pattern-miss']);
+    setLocal(ANSWERS, [...finderAnswers().slice(-499), { at: Date.now(), id: ex.id, right }]);
     setS((x) => {
       let ids = x.ids, retries = x.retries;
       if (!right) {
