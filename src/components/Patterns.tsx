@@ -69,7 +69,7 @@ function LessonList({ progress, solved, pick }: { progress: Progress; solved: Se
           </li>
         ))}
       </ol>
-      <p className="mt-4 text-sm text-zinc-500">The 15 patterns follow the widely shared AlgoMaster list. Pattern 0 covers hashing, since NeetCode 150 starts there.</p>
+      <p className="mt-4 text-sm text-zinc-500">The 15 patterns follow the widely shared <a href="https://blog.algomaster.io/p/15-leetcode-patterns" target="_blank" rel="noreferrer" className="link">AlgoMaster list</a>. Pattern 0 covers hashing, since NeetCode 150 starts there. Each lesson links the NeetCode videos and free reading for it.</p>
     </div>
   );
 }
@@ -154,6 +154,20 @@ function LessonView({ lesson: l, progress, solved, onLesson, open, back, next }:
           <p className="mt-2 text-sm text-zinc-500">Stuck for 20 minutes? Watch NeetCode's video for it, then close it and write the solution yourself from memory.</p>
         </section>
 
+        <section>
+          <SectionTitle>Watch and read</SectionTitle>
+          <ul className="space-y-2">
+            {resourcesFor(l).map((r) => (
+              <li key={r.url}>
+                <a href={r.url} target="_blank" rel="noreferrer" className="group flex items-start gap-2">
+                  <ExternalLink size={14} className="mt-1 shrink-0 text-zinc-500" />
+                  <span><span className="font-medium text-violet-300 group-hover:underline">{r.title}</span><span className="block text-sm text-zinc-500">{r.why}</span></span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <div className="flex flex-wrap gap-2 border-t border-zinc-800 pt-6">
           <Button onClick={() => open('pattern', { pattern: l.drill, company: 'all' })}>Drill spotting this pattern</Button>
           <Button variant="subtle" onClick={() => open('syntax', { pattern: l.drill, company: 'all' })}>Type its Python</Button>
@@ -199,4 +213,34 @@ function CheckQ({ lesson, idx, state, onLesson }: { lesson: Lesson; idx: number;
       )}
     </Card>
   );
+}
+
+const LC_EXPLORE: Record<string, { title: string; url: string }> = {
+  hashing: { title: 'LeetCode Explore: Hash Table', url: 'https://leetcode.com/explore/learn/card/hash-table/' },
+  'two-pointers': { title: 'LeetCode Explore: Array and String (two pointer section)', url: 'https://leetcode.com/explore/learn/card/array-and-string/' },
+  'binary-search': { title: 'LeetCode Explore: Binary Search', url: 'https://leetcode.com/explore/learn/card/binary-search/' },
+  'reverse-ll': { title: 'LeetCode Explore: Linked List', url: 'https://leetcode.com/explore/learn/card/linked-list/' },
+  'fast-slow': { title: 'LeetCode Explore: Linked List (two pointer technique)', url: 'https://leetcode.com/explore/learn/card/linked-list/' },
+  'monotonic-stack': { title: 'LeetCode Explore: Queue and Stack', url: 'https://leetcode.com/explore/learn/card/queue-stack/' },
+  bfs: { title: 'LeetCode Explore: Queue and Stack (BFS section)', url: 'https://leetcode.com/explore/learn/card/queue-stack/' },
+  'tree-traversal': { title: 'LeetCode Explore: Binary Tree', url: 'https://leetcode.com/explore/learn/card/data-structure-tree/' },
+  dfs: { title: 'LeetCode Explore: Graph', url: 'https://leetcode.com/explore/learn/card/graph/' },
+  backtracking: { title: 'LeetCode Explore: Recursion II (backtracking)', url: 'https://leetcode.com/explore/learn/card/recursion-ii/' },
+  dp: { title: 'LeetCode Explore: Dynamic Programming', url: 'https://leetcode.com/explore/learn/card/dynamic-programming/' },
+  'top-k': { title: 'LeetCode Explore: Heap', url: 'https://leetcode.com/explore/learn/card/heap/' },
+};
+
+/** Free videos and reading for a lesson. NeetCode problem pages each have a video walkthrough. */
+function resourcesFor(l: Lesson) {
+  const first = NC[l.problems[0]];
+  const second = NC[l.problems[1]];
+  const q = encodeURIComponent(`${l.name} pattern leetcode explained`);
+  const out = [
+    first && { title: `NeetCode video: ${first.name}`, url: first.url, why: 'Watch the walkthrough on the problem page, then close it and code it yourself from memory.' },
+    second && { title: `NeetCode video: ${second.name}`, url: second.url, why: 'A second problem with the same pattern, so you see what changes and what stays the same.' },
+    { title: `YouTube: ${l.name} explained`, url: `https://www.youtube.com/results?search_query=${q}`, why: 'Short pattern explainers from NeetCode, Greg Hogg and others. Pick one under 20 minutes.' },
+    LC_EXPLORE[l.id] && { ...LC_EXPLORE[l.id], why: 'Free LeetCode lessons with small practice problems, good if the idea still feels shaky.' },
+    { title: 'NeetCode roadmap', url: 'https://neetcode.io/roadmap', why: 'Where this pattern sits in the full NeetCode 150 order.' },
+  ];
+  return out.filter(Boolean) as { title: string; url: string; why: string }[];
 }

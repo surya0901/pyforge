@@ -9,7 +9,7 @@ import type { Mode, Progress } from '../types';
 import { Card } from './ui';
 import { nextProblems } from './StudyPath';
 
-interface FeedJob { id: string; company: string; title: string; location: string; url: string; firstSeenAt?: string; tier: 'target' | 'big' | 'other' }
+interface FeedJob { id: string; company: string; title: string; location: string; url: string; posted?: string; ageDays?: number; tier: 'target' | 'big' | 'other' }
 interface DayState { manual: Record<string, boolean>; applied: string[]; picks?: string[]; lesson?: string }
 
 const FEED_URL = /github\.io$/.test(location.hostname)
@@ -17,6 +17,7 @@ const FEED_URL = /github\.io$/.test(location.hostname)
   : 'https://surya0901.github.io/swe-job-tracker/data/apply-feed.json';
 const TRACKER = 'https://surya0901.github.io/swe-job-tracker/';
 const APP_GOAL = 10;
+const PER_COMPANY = 2; // recruiters see every application, so spread them out
 const PATTERN_IDS = new Set(PATTERN_DRILLS.map((p) => p.id));
 
 interface Props {
@@ -53,14 +54,16 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const cardsToday = seenToday((id) => id.startsWith('fc-'));
   const oaToday = getLocal<{ at: number }[]>('pyforge.oa.history', []).filter((h) => h.at >= start.getTime()).length;
   const lesson = LESSONS.find((l) => l.id === lessonId)!;
-  const lessonDone = (progress.lessons?.[lesson.id]?.opened ?? 0) >= start.getTime() || !!progress.lessons?.[lesson.id]?.learned;
+  const lessonChecks = lesson.check.filter((_, i) => progress.lessons?.[lesson.id]?.checks?.[i]).length;
+  // Opening the lesson isn't enough: it counts once every quick check is passed.
+  const lessonDone = lessonChecks === lesson.check.length;
   const pickProbs = picks.map((s) => NEETCODE.find((p) => p.slug === s)!).filter(Boolean);
   const ncDone = pickProbs.filter((p) => solved.has(p.slug)).length;
 
   const tasks = [
-    { id: 'neetcode', mins: 70, title: `Solve ${pickProbs.length} NeetCode problems`, detail: pickProbs.map((p) => p.name).join(' and '), done: ncDone >= pickProbs.length || state.manual.neetcode, auto: true,
+    { id: 'neetcode', mins: 70, title: `Solve ${pickProbs.length} NeetCode problems`, detail: `${pickProbs.map((p) => p.name).join(' and ')}. Try 25 minutes on your own first. Stuck? Each problem page has NeetCode's video walkthrough.`, done: ncDone >= pickProbs.length || state.manual.neetcode, auto: true,
       action: pickProbs[ncDone] ? <a href={pickProbs[ncDone].url} target="_blank" rel="noreferrer" className="link">Open {pickProbs[ncDone].name}</a> : null, progress: `${ncDone}/${pickProbs.length}` },
-    { id: 'lesson', mins: 10, title: `Learn the pattern: ${lesson.name}`, detail: 'Read it and pass the quick check before you code.', done: lessonDone || state.manual.lesson, auto: true,
+    { id: 'lesson', mins: 15, title: `Learn the pattern: ${lesson.name}`, detail: 'Read the lesson, watch one of its linked videos, then pass every quick check question.', done: lessonDone || state.manual.lesson, auto: true, progress: `${lessonChecks}/${lesson.check.length} checks`,
       action: <button onClick={() => onLearn(lesson.id)} className="link">Read lesson</button> },
     { id: 'finder', mins: 15, title: 'Pattern finder: 10 questions', detail: 'Name the approach for real problems, with your stopwatch report at the end.', done: finderToday >= 10 || state.manual.finder, auto: true,
       action: <button onClick={() => open('pattern')} className="link">Start</button>, progress: `${Math.min(finderToday, 10)}/10` },
@@ -78,7 +81,22 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const doneCount = tasks.filter((t) => t.done).length;
   const hrs = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`);
 
-  const queue = (feed ?? []).filter((j) => !appliedEver[j.id] && !skipped[j.id]).slice(0, Math.max(0, APP_GOAL - state.applied.length) + 3);
+  // Newest first (the feed is sorted that way), at most 2 per company per day.
+  const queue = useMemo(() => {
+    const perCo: Record<string, number> = {};
+    for (const id of state.applied) { const j = feed?.find((x) => x.id === id); if (j) perCo[j.company] = (perCo[j.company] ?? 0) + 1; }
+    const out: FeedJob[] = [];
+    for (const j of feed ?? []) {
+      if (appliedEver[j.id] || skipped[j.id]) continue;
+      if ((perCo[j.company] ?? 0) >= PER_COMPANY) continue;
+      perCo[j.company] = (perCo[j.company] ?? 0) + 1;
+      out.push(j);
+      if (out.length >= Math.max(0, APP_GOAL - state.applied.length) + 3) break;
+    }
+    return out;
+  }, [feed, appliedEver, skipped, state.applied]);
+  const days = (j: FeedJob) => (j.posted ? Math.max(0, Math.floor((Date.now() - new Date(j.posted).getTime()) / 86_400_000)) : j.ageDays);
+  const ago = (d?: number) => (d == null ? '' : d === 0 ? 'Posted today' : d === 1 ? 'Posted yesterday' : `Posted ${d} days ago`);
   const markApplied = (j: FeedJob) => {
     const ever = { ...appliedEver, [j.id]: day };
     setAppliedEver(ever); setLocal('pyforge.applied', ever);
@@ -129,7 +147,15 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
             <a href={TRACKER} target="_blank" rel="noreferrer" className="link">Full job tracker</a>
           </span>
         </div>
-        <p className="mt-1 text-sm text-zinc-500">Open US new grad and entry level SWE roles from your tracker. Your target companies come first, then other big companies, newest first.</p>
+        <div className="mt-2 rounded-md border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm leading-relaxed text-zinc-300">
+          <p className="font-medium text-zinc-100">How today's 10 are picked, and how to apply well</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 marker:text-zinc-600">
+            <li>Newest postings first. Most roles get the bulk of their applicants in the first week, so apply the day you see them.</li>
+            <li>At most {PER_COMPANY} roles per company per day. Recruiters see all your applications, so pick the 1 or 2 that fit you best rather than every opening.</li>
+            <li>Your target companies get a head start, then other big names like Akuna or Northrop, then everyone else. Roles too senior for a new grad (Associate at banks, Senior, II, III) are filtered out.</li>
+            <li>For companies on your list, a referral beats a cold apply. Message a Rutgers alum or an engineer on the team, ideally before you submit.</li>
+          </ul>
+        </div>
         {feedError && <p className="mt-3 text-sm text-rose-300">Couldn't load roles here. Open the full job tracker instead.</p>}
         {!feed && !feedError && <p className="mt-3 text-sm text-zinc-500">Loading roles…</p>}
         {feed && (
@@ -139,7 +165,9 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
                 <div className="min-w-0 flex-1">
                   <span className="font-medium text-zinc-100">{j.company}</span>
                   {j.tier !== 'other' && <span className={`ml-2 rounded px-1.5 py-px text-[11px] ${j.tier === 'target' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>{j.tier === 'target' ? 'your list' : 'big company'}</span>}
+                  {(days(j) ?? 99) <= 3 && <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-px text-[11px] text-emerald-300">new</span>}
                   <span className="block truncate text-sm text-zinc-400">{j.title} · {j.location}</span>
+                  <span className="block text-xs text-zinc-500">{ago(days(j))}</span>
                 </div>
                 <a href={j.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2.5 py-1 text-sm text-zinc-200 hover:border-zinc-500">Open<ExternalLink size={12} /></a>
                 <button onClick={() => markApplied(j)} className="rounded-md bg-violet-600 px-2.5 py-1 text-sm font-medium text-white hover:bg-violet-700">Applied</button>
