@@ -47,6 +47,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "Off by one: range(1, len(nums)) skips index 0, so an even first element is never counted.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    6,
    2,
@@ -99,6 +100,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "best starts at 0, so a list of only negative numbers returns 0. Start from nums[0].",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    9,
    5,
@@ -165,6 +167,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "With hi = len - 1 (inclusive), the loop must be while lo <= hi. Using < never checks the last remaining element.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    2,
    -1,
@@ -200,6 +203,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "The 15 check comes after the 3 check, so it can never run. The most specific condition must come first.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    [
     "1",
@@ -277,6 +281,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "return -1 is indented inside the loop, so the function gives up after checking only the first character.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    0,
    2,
@@ -320,6 +325,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "A mutable default ({}) is created once and shared by every call, so counts leak from one call into the next. Default to None and create the dict inside.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    {
     "a": 2,
@@ -391,6 +397,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "Only the leftovers of a are copied. Whatever remains in b after the loop is dropped.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    [
     1,
@@ -448,6 +455,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "Returning True at the end ignores brackets that were opened but never closed. Return not stack.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    true,
    false,
@@ -504,6 +512,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "[[0] * rows] * cols makes cols references to the SAME inner list, so every row ends up identical. Build each row separately with a comprehension.",
   "difficulty": "medium",
+  "tags": [],
   "expected": [
    [
     [
@@ -575,6 +584,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "A set has no order, so list(set(items)) can scramble the result. Track seen values and append in order.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    [
     3,
@@ -626,6 +636,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "Two bugs: n < 2 is never rejected, and range(2, n // 2) is empty for n = 4, so 4 is called prime. Check divisors up to the square root, inclusive.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    true,
    false,
@@ -675,6 +686,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "Duplicates of the max are not removed, so [5, 5, 2] returns 5. Use set() before sorting.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    3,
    2,
@@ -740,6 +752,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "amt < bal skips a withdrawal of exactly the whole balance. It should be <=.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    80,
    0,
@@ -781,6 +794,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "range(years - 1) applies growth one year too few.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    1050.0,
    1157.62,
@@ -833,6 +847,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "append adds the flattened sublist as ONE element, keeping the nesting. extend adds its items one by one.",
   "difficulty": "medium",
+  "tags": [],
   "expected": [
    [
     1,
@@ -875,6 +890,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "split(\" \") keeps empty strings for repeated spaces. split() with no argument splits on any run of whitespace and drops empties.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    "blue is sky the",
    "world hello",
@@ -919,6 +935,7 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "It adds the previous INPUT value, not the previous running total. Use out[i - 1].",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    [
     1,
@@ -963,11 +980,749 @@ export const OA_PROBLEMS: OAProblem[] = [
   "cmp": "exact",
   "explain": "Uppercase vowels are not counted. Lowercase the string first.",
   "difficulty": "easy",
+  "tags": [],
   "expected": [
    2,
    5,
    0,
    3
+  ]
+ },
+ {
+  "id": "rw-paginate",
+  "kind": "debug",
+  "title": "Pagination endpoint",
+  "func": "get_page",
+  "statement": "An API returns results in pages. Pages are numbered from 1. Return the items on the given page, or [] past the end.",
+  "starter": "def get_page(items, page, size):\n    start = page * size\n    return items[start:start + size]\n",
+  "solution": "def get_page(items, page, size):\n    start = (page - 1) * size\n    return items[start:start + size]\n",
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    1,
+    2
+   ],
+   [
+    [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    3,
+    2
+   ],
+   [
+    [
+     1,
+     2,
+     3
+    ],
+    2,
+    3
+   ],
+   [
+    [
+     "a",
+     "b"
+    ],
+    1,
+    10
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "Pages start at 1, but the code treats them as starting at 0, so page 1 returns what should be page 2. Classic off by one at an API boundary.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   [
+    1,
+    2
+   ],
+   [
+    5
+   ],
+   [],
+   [
+    "a",
+    "b"
+   ]
+  ]
+ },
+ {
+  "id": "rw-split-bill",
+  "kind": "debug",
+  "title": "Splitting a payment",
+  "func": "split_cents",
+  "statement": "Split total_cents across n people as evenly as possible. The parts must add up to exactly total_cents, and the first people pay the extra cents.",
+  "starter": "def split_cents(total_cents, n):\n    share = total_cents // n\n    return [share] * n\n",
+  "solution": "def split_cents(total_cents, n):\n    share, extra = divmod(total_cents, n)\n    return [share + 1 if i < extra else share for i in range(n)]\n",
+  "tests": [
+   [
+    1000,
+    3
+   ],
+   [
+    900,
+    3
+   ],
+   [
+    5,
+    2
+   ],
+   [
+    1,
+    4
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "Integer division drops the remainder, so 1000 cents across 3 people loses a cent. Money code must always add back up. divmod gives the leftover cents to hand out.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   [
+    334,
+    333,
+    333
+   ],
+   [
+    300,
+    300,
+    300
+   ],
+   [
+    3,
+    2
+   ],
+   [
+    1,
+    0,
+    0,
+    0
+   ]
+  ]
+ },
+ {
+  "id": "rw-csv",
+  "kind": "debug",
+  "title": "Parsing a CSV export",
+  "func": "parse_row",
+  "statement": "Split one line of a CSV export into fields. Fields that contain commas are wrapped in double quotes, like: 42,\"Smith, Jane\",NJ",
+  "starter": "def parse_row(line):\n    return line.split(\",\")\n",
+  "solution": "import csv\ndef parse_row(line):\n    return next(csv.reader([line]))\n",
+  "tests": [
+   [
+    "1,alice,NJ"
+   ],
+   [
+    "42,\"Smith, Jane\",NJ"
+   ],
+   [
+    "\"a,b\",\"c\""
+   ],
+   [
+    "x,,y"
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "split(\",\") breaks quoted fields that contain commas. Real exports always have them. Use the csv module, which handles quoting.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   [
+    "1",
+    "alice",
+    "NJ"
+   ],
+   [
+    "42",
+    "Smith, Jane",
+    "NJ"
+   ],
+   [
+    "a,b",
+    "c"
+   ],
+   [
+    "x",
+    "",
+    "y"
+   ]
+  ]
+ },
+ {
+  "id": "rw-latest-events",
+  "kind": "debug",
+  "title": "Keep the latest version of each record",
+  "func": "latest",
+  "statement": "Events are (id, timestamp, status). Return a dict mapping each id to the status from its NEWEST event. Events arrive out of order.",
+  "starter": "def latest(events):\n    best = {}\n    for eid, ts, status in events:\n        if eid not in best or ts < best[eid][0]:\n            best[eid] = (ts, status)\n    return {eid: s for eid, (ts, s) in best.items()}\n",
+  "solution": "def latest(events):\n    best = {}\n    for eid, ts, status in events:\n        if eid not in best or ts > best[eid][0]:\n            best[eid] = (ts, status)\n    return {eid: s for eid, (ts, s) in best.items()}\n",
+  "tests": [
+   [
+    [
+     [
+      "a",
+      1,
+      "new"
+     ],
+     [
+      "a",
+      3,
+      "paid"
+     ],
+     [
+      "a",
+      2,
+      "sent"
+     ]
+    ]
+   ],
+   [
+    [
+     [
+      "x",
+      5,
+      "ok"
+     ]
+    ]
+   ],
+   [
+    [
+     [
+      "a",
+      2,
+      "b"
+     ],
+     [
+      "b",
+      1,
+      "c"
+     ],
+     [
+      "a",
+      1,
+      "z"
+     ]
+    ]
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "The comparison is flipped, so it keeps the OLDEST event. Out of order delivery is normal in event pipelines, so you must compare timestamps, not trust arrival order.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   {
+    "a": "paid"
+   },
+   {
+    "x": "ok"
+   },
+   {
+    "a": "b",
+    "b": "c"
+   }
+  ]
+ },
+ {
+  "id": "rw-retry",
+  "kind": "debug",
+  "title": "Retry with a limit",
+  "func": "first_success",
+  "statement": "A flaky call is retried up to max_attempts times. results[i] is True if attempt i + 1 would succeed. Return the attempt number that first succeeds, or -1 if none succeed within the limit.",
+  "starter": "def first_success(results, max_attempts):\n    for attempt in range(1, max_attempts + 2):\n        if attempt <= len(results) and results[attempt - 1]:\n            return attempt\n    return -1\n",
+  "solution": "def first_success(results, max_attempts):\n    for attempt in range(1, max_attempts + 1):\n        if attempt <= len(results) and results[attempt - 1]:\n            return attempt\n    return -1\n",
+  "tests": [
+   [
+    [
+     false,
+     true
+    ],
+    3
+   ],
+   [
+    [
+     false,
+     false,
+     false,
+     true
+    ],
+    3
+   ],
+   [
+    [
+     true
+    ],
+    1
+   ],
+   [
+    [
+     false,
+     false
+    ],
+    2
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "range(1, max_attempts + 2) allows one retry too many. Retry limits that are off by one hammer a struggling service.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   2,
+   -1,
+   1,
+   -1
+  ]
+ },
+ {
+  "id": "rw-merge-config",
+  "kind": "debug",
+  "title": "Merging config files",
+  "func": "merge_config",
+  "statement": "Merge overrides into defaults and return a new dict. Nested dicts must merge key by key instead of replacing the whole section. Do not modify defaults.",
+  "starter": "def merge_config(defaults, overrides):\n    out = dict(defaults)\n    out.update(overrides)\n    return out\n",
+  "solution": "def merge_config(defaults, overrides):\n    out = dict(defaults)\n    for k, v in overrides.items():\n        if isinstance(v, dict) and isinstance(out.get(k), dict):\n            out[k] = merge_config(out[k], v)\n        else:\n            out[k] = v\n    return out\n",
+  "tests": [
+   [
+    {
+     "db": {
+      "host": "a",
+      "port": 1
+     },
+     "debug": false
+    },
+    {
+     "db": {
+      "port": 2
+     }
+    }
+   ],
+   [
+    {
+     "a": 1
+    },
+    {
+     "b": 2
+    }
+   ],
+   [
+    {
+     "x": {
+      "y": {
+       "z": 1,
+       "w": 2
+      }
+     }
+    },
+    {
+     "x": {
+      "y": {
+       "z": 9
+      }
+     }
+    }
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "update() replaces the whole \"db\" section, so the host setting disappears. Nested config needs a recursive merge.",
+  "difficulty": "medium",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   {
+    "db": {
+     "host": "a",
+     "port": 2
+    },
+    "debug": false
+   },
+   {
+    "a": 1,
+    "b": 2
+   },
+   {
+    "x": {
+     "y": {
+      "z": 9,
+      "w": 2
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "rw-remove-inactive",
+  "kind": "debug",
+  "title": "Cleaning up inactive users",
+  "func": "active_only",
+  "statement": "Remove every user whose \"active\" flag is False and return the list of remaining users.",
+  "starter": "def active_only(users):\n    for u in users:\n        if not u[\"active\"]:\n            users.remove(u)\n    return users\n",
+  "solution": "def active_only(users):\n    return [u for u in users if u[\"active\"]]\n",
+  "tests": [
+   [
+    [
+     {
+      "id": 1,
+      "active": false
+     },
+     {
+      "id": 2,
+      "active": false
+     },
+     {
+      "id": 3,
+      "active": true
+     }
+    ]
+   ],
+   [
+    [
+     {
+      "id": 1,
+      "active": true
+     }
+    ]
+   ],
+   [
+    [
+     {
+      "id": 1,
+      "active": false
+     },
+     {
+      "id": 2,
+      "active": false
+     }
+    ]
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "Removing from a list while looping over it skips the element right after each removal. Build a new list instead.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   [
+    {
+     "id": 3,
+     "active": true
+    }
+   ],
+   [
+    {
+     "id": 1,
+     "active": true
+    }
+   ],
+   []
+  ]
+ },
+ {
+  "id": "rw-conversion",
+  "kind": "debug",
+  "title": "Dashboard conversion rate",
+  "func": "conversion_rate",
+  "statement": "Return signups / visits as a percentage rounded to 1 decimal. A page with no visits should show 0.0 instead of crashing the dashboard.",
+  "starter": "def conversion_rate(signups, visits):\n    return round(signups / visits * 100, 1)\n",
+  "solution": "def conversion_rate(signups, visits):\n    if visits == 0:\n        return 0.0\n    return round(signups / visits * 100, 1)\n",
+  "tests": [
+   [
+    5,
+    200
+   ],
+   [
+    0,
+    0
+   ],
+   [
+    1,
+    3
+   ],
+   [
+    10,
+    10
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "Division by zero when a page has no traffic yet. Any ratio shown on a dashboard needs a zero guard.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   2.5,
+   0.0,
+   33.3,
+   100.0
+  ]
+ },
+ {
+  "id": "rw-batches",
+  "kind": "debug",
+  "title": "Sending records in batches",
+  "func": "make_batches",
+  "statement": "Split records into batches of at most size items each, in order. The last batch may be smaller.",
+  "starter": "def make_batches(records, size):\n    return [records[i:i + size] for i in range(0, len(records) - size + 1, size)]\n",
+  "solution": "def make_batches(records, size):\n    return [records[i:i + size] for i in range(0, len(records), size)]\n",
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    2
+   ],
+   [
+    [
+     1,
+     2,
+     3,
+     4
+    ],
+    2
+   ],
+   [
+    [
+     1
+    ],
+    5
+   ],
+   [
+    [],
+    3
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "The range stops early, so the final partial batch is silently dropped. Data that never gets sent is one of the worst bugs to find in production.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   [
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     5
+    ]
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ]
+   ],
+   [
+    [
+     1
+    ]
+   ],
+   []
+  ]
+ },
+ {
+  "id": "rw-duration",
+  "kind": "debug",
+  "title": "Parsing durations like \"1h30m\"",
+  "func": "to_minutes",
+  "statement": "Convert a duration string such as \"2h15m\", \"45m\" or \"3h\" into total minutes.",
+  "starter": "def to_minutes(s):\n    total = num = 0\n    for ch in s:\n        if ch.isdigit():\n            num = int(ch)\n        elif ch == \"h\":\n            total += num * 60\n            num = 0\n        elif ch == \"m\":\n            total += num\n            num = 0\n    return total\n",
+  "solution": "def to_minutes(s):\n    total = num = 0\n    for ch in s:\n        if ch.isdigit():\n            num = num * 10 + int(ch)\n        elif ch == \"h\":\n            total += num * 60\n            num = 0\n        elif ch == \"m\":\n            total += num\n            num = 0\n    return total\n",
+  "tests": [
+   [
+    "2h15m"
+   ],
+   [
+    "45m"
+   ],
+   [
+    "3h"
+   ],
+   [
+    "1h5m"
+   ],
+   [
+    "10h"
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "num = int(ch) keeps only the last digit, so \"45m\" becomes 5. Multi-digit numbers need num = num * 10 + digit.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   135,
+   45,
+   180,
+   65,
+   600
+  ]
+ },
+ {
+  "id": "rw-top-customers",
+  "kind": "debug",
+  "title": "Top customers report",
+  "func": "top_customers",
+  "statement": "orders is a list of (customer, amount). Return the names of the k customers with the highest total spend, highest first.",
+  "starter": "def top_customers(orders, k):\n    totals = {}\n    for name, amt in orders:\n        totals[name] = totals.get(name, 0) + amt\n    ranked = sorted(totals.items(), key=lambda x: x[1])\n    return [name for name, _ in ranked[:k]]\n",
+  "solution": "def top_customers(orders, k):\n    totals = {}\n    for name, amt in orders:\n        totals[name] = totals.get(name, 0) + amt\n    ranked = sorted(totals.items(), key=lambda x: x[1], reverse=True)\n    return [name for name, _ in ranked[:k]]\n",
+  "tests": [
+   [
+    [
+     [
+      "a",
+      5
+     ],
+     [
+      "b",
+      50
+     ],
+     [
+      "a",
+      10
+     ],
+     [
+      "c",
+      1
+     ]
+    ],
+    2
+   ],
+   [
+    [
+     [
+      "x",
+      3
+     ]
+    ],
+    1
+   ],
+   [
+    [
+     [
+      "p",
+      1
+     ],
+     [
+      "q",
+      2
+     ],
+     [
+      "r",
+      3
+     ]
+    ],
+    3
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "sorted() is ascending by default, so the report lists the SMALLEST spenders. Add reverse=True.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   [
+    "b",
+    "a"
+   ],
+   [
+    "x"
+   ],
+   [
+    "r",
+    "q",
+    "p"
+   ]
+  ]
+ },
+ {
+  "id": "rw-business-hours",
+  "kind": "debug",
+  "title": "Business hours check",
+  "func": "is_open",
+  "statement": "Support is open from 9:00 up to but not including 17:00. Given hour (0 to 23) and minute, return whether support is open.",
+  "starter": "def is_open(hour, minute):\n    return 9 <= hour <= 17\n",
+  "solution": "def is_open(hour, minute):\n    return 9 <= hour < 17\n",
+  "tests": [
+   [
+    9,
+    0
+   ],
+   [
+    16,
+    59
+   ],
+   [
+    17,
+    0
+   ],
+   [
+    17,
+    30
+   ],
+   [
+    8,
+    59
+   ]
+  ],
+  "visible": 2,
+  "cmp": "exact",
+  "explain": "hour <= 17 lets 17:30 count as open. With \"up to but not including\", the end comparison must be <.",
+  "difficulty": "easy",
+  "tags": [
+   "real-world"
+  ],
+  "expected": [
+   true,
+   true,
+   false,
+   false,
+   false
   ]
  },
  {

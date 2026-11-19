@@ -10,9 +10,9 @@ import copy, json, pathlib, textwrap
 D = lambda s: textwrap.dedent(s).strip('\n') + '\n'
 P = []
 
-def debug(id, title, func, statement, buggy, fixed, tests, visible=2, cmp='exact', bug='', difficulty='easy', calls_share_state=False):
+def debug(id, title, func, statement, buggy, fixed, tests, visible=2, cmp='exact', bug='', difficulty='easy', calls_share_state=False, tags=()):
     P.append(dict(id=id, kind='debug', title=title, func=func, statement=statement, starter=D(buggy), solution=D(fixed),
-                  tests=tests, visible=visible, cmp=cmp, explain=bug, difficulty=difficulty))
+                  tests=tests, visible=visible, cmp=cmp, explain=bug, difficulty=difficulty, tags=list(tags)))
 
 def code(id, title, func, statement, starter, solution, tests, visible=2, cmp='exact', explain='', difficulty='medium', tags=()):
     P.append(dict(id=id, kind='code', title=title, func=func, statement=statement, starter=D(starter), solution=D(solution),
@@ -391,6 +391,201 @@ debug('dbg-count-vowels', 'Count vowels', 'count_vowels',
       return sum(1 for ch in s.lower() if ch in "aeiou")
   ''', [['hello'], ['AEIOU'], ['xyz'], ['Programming']],
   bug='Uppercase vowels are not counted. Lowercase the string first.')
+
+
+# ───────────── Real work bugs: the kind of code you fix on the job ─────────────
+R = ('real-world',)
+debug('rw-paginate', 'Pagination endpoint', 'get_page',
+  'An API returns results in pages. Pages are numbered from 1. Return the items on the given page, or [] past the end.',
+  """
+  def get_page(items, page, size):
+      start = page * size
+      return items[start:start + size]
+  """, """
+  def get_page(items, page, size):
+      start = (page - 1) * size
+      return items[start:start + size]
+  """, [[[1, 2, 3, 4, 5], 1, 2], [[1, 2, 3, 4, 5], 3, 2], [[1, 2, 3], 2, 3], [['a', 'b'], 1, 10]], tags=R,
+  bug='Pages start at 1, but the code treats them as starting at 0, so page 1 returns what should be page 2. Classic off by one at an API boundary.')
+
+debug('rw-split-bill', 'Splitting a payment', 'split_cents',
+  'Split total_cents across n people as evenly as possible. The parts must add up to exactly total_cents, and the first people pay the extra cents.',
+  """
+  def split_cents(total_cents, n):
+      share = total_cents // n
+      return [share] * n
+  """, """
+  def split_cents(total_cents, n):
+      share, extra = divmod(total_cents, n)
+      return [share + 1 if i < extra else share for i in range(n)]
+  """, [[1000, 3], [900, 3], [5, 2], [1, 4]], tags=R,
+  bug='Integer division drops the remainder, so 1000 cents across 3 people loses a cent. Money code must always add back up. divmod gives the leftover cents to hand out.')
+
+debug('rw-csv', 'Parsing a CSV export', 'parse_row',
+  'Split one line of a CSV export into fields. Fields that contain commas are wrapped in double quotes, like: 42,"Smith, Jane",NJ',
+  """
+  def parse_row(line):
+      return line.split(",")
+  """, """
+  import csv
+  def parse_row(line):
+      return next(csv.reader([line]))
+  """, [['1,alice,NJ'], ['42,"Smith, Jane",NJ'], ['"a,b","c"'], ['x,,y']], tags=R,
+  bug='split(",") breaks quoted fields that contain commas. Real exports always have them. Use the csv module, which handles quoting.')
+
+debug('rw-latest-events', 'Keep the latest version of each record', 'latest',
+  'Events are (id, timestamp, status). Return a dict mapping each id to the status from its NEWEST event. Events arrive out of order.',
+  """
+  def latest(events):
+      best = {}
+      for eid, ts, status in events:
+          if eid not in best or ts < best[eid][0]:
+              best[eid] = (ts, status)
+      return {eid: s for eid, (ts, s) in best.items()}
+  """, """
+  def latest(events):
+      best = {}
+      for eid, ts, status in events:
+          if eid not in best or ts > best[eid][0]:
+              best[eid] = (ts, status)
+      return {eid: s for eid, (ts, s) in best.items()}
+  """, [[[['a', 1, 'new'], ['a', 3, 'paid'], ['a', 2, 'sent']]], [[['x', 5, 'ok']]], [[['a', 2, 'b'], ['b', 1, 'c'], ['a', 1, 'z']]]], tags=R,
+  bug='The comparison is flipped, so it keeps the OLDEST event. Out of order delivery is normal in event pipelines, so you must compare timestamps, not trust arrival order.')
+
+debug('rw-retry', 'Retry with a limit', 'first_success',
+  'A flaky call is retried up to max_attempts times. results[i] is True if attempt i + 1 would succeed. Return the attempt number that first succeeds, or -1 if none succeed within the limit.',
+  """
+  def first_success(results, max_attempts):
+      for attempt in range(1, max_attempts + 2):
+          if attempt <= len(results) and results[attempt - 1]:
+              return attempt
+      return -1
+  """, """
+  def first_success(results, max_attempts):
+      for attempt in range(1, max_attempts + 1):
+          if attempt <= len(results) and results[attempt - 1]:
+              return attempt
+      return -1
+  """, [[[False, True], 3], [[False, False, False, True], 3], [[True], 1], [[False, False], 2]], tags=R,
+  bug='range(1, max_attempts + 2) allows one retry too many. Retry limits that are off by one hammer a struggling service.')
+
+debug('rw-merge-config', 'Merging config files', 'merge_config',
+  'Merge overrides into defaults and return a new dict. Nested dicts must merge key by key instead of replacing the whole section. Do not modify defaults.',
+  """
+  def merge_config(defaults, overrides):
+      out = dict(defaults)
+      out.update(overrides)
+      return out
+  """, """
+  def merge_config(defaults, overrides):
+      out = dict(defaults)
+      for k, v in overrides.items():
+          if isinstance(v, dict) and isinstance(out.get(k), dict):
+              out[k] = merge_config(out[k], v)
+          else:
+              out[k] = v
+      return out
+  """, [[{'db': {'host': 'a', 'port': 1}, 'debug': False}, {'db': {'port': 2}}], [{'a': 1}, {'b': 2}], [{'x': {'y': {'z': 1, 'w': 2}}}, {'x': {'y': {'z': 9}}}]], difficulty='medium', tags=R,
+  bug='update() replaces the whole "db" section, so the host setting disappears. Nested config needs a recursive merge.')
+
+debug('rw-remove-inactive', 'Cleaning up inactive users', 'active_only',
+  'Remove every user whose "active" flag is False and return the list of remaining users.',
+  """
+  def active_only(users):
+      for u in users:
+          if not u["active"]:
+              users.remove(u)
+      return users
+  """, """
+  def active_only(users):
+      return [u for u in users if u["active"]]
+  """, [[[{'id': 1, 'active': False}, {'id': 2, 'active': False}, {'id': 3, 'active': True}]], [[{'id': 1, 'active': True}]], [[{'id': 1, 'active': False}, {'id': 2, 'active': False}]]], tags=R,
+  bug='Removing from a list while looping over it skips the element right after each removal. Build a new list instead.')
+
+debug('rw-conversion', 'Dashboard conversion rate', 'conversion_rate',
+  'Return signups / visits as a percentage rounded to 1 decimal. A page with no visits should show 0.0 instead of crashing the dashboard.',
+  """
+  def conversion_rate(signups, visits):
+      return round(signups / visits * 100, 1)
+  """, """
+  def conversion_rate(signups, visits):
+      if visits == 0:
+          return 0.0
+      return round(signups / visits * 100, 1)
+  """, [[5, 200], [0, 0], [1, 3], [10, 10]], tags=R,
+  bug='Division by zero when a page has no traffic yet. Any ratio shown on a dashboard needs a zero guard.')
+
+debug('rw-batches', 'Sending records in batches', 'make_batches',
+  'Split records into batches of at most size items each, in order. The last batch may be smaller.',
+  """
+  def make_batches(records, size):
+      return [records[i:i + size] for i in range(0, len(records) - size + 1, size)]
+  """, """
+  def make_batches(records, size):
+      return [records[i:i + size] for i in range(0, len(records), size)]
+  """, [[[1, 2, 3, 4, 5], 2], [[1, 2, 3, 4], 2], [[1], 5], [[], 3]], tags=R,
+  bug='The range stops early, so the final partial batch is silently dropped. Data that never gets sent is one of the worst bugs to find in production.')
+
+debug('rw-duration', 'Parsing durations like "1h30m"', 'to_minutes',
+  'Convert a duration string such as "2h15m", "45m" or "3h" into total minutes.',
+  """
+  def to_minutes(s):
+      total = num = 0
+      for ch in s:
+          if ch.isdigit():
+              num = int(ch)
+          elif ch == "h":
+              total += num * 60
+              num = 0
+          elif ch == "m":
+              total += num
+              num = 0
+      return total
+  """, """
+  def to_minutes(s):
+      total = num = 0
+      for ch in s:
+          if ch.isdigit():
+              num = num * 10 + int(ch)
+          elif ch == "h":
+              total += num * 60
+              num = 0
+          elif ch == "m":
+              total += num
+              num = 0
+      return total
+  """, [['2h15m'], ['45m'], ['3h'], ['1h5m'], ['10h']], tags=R,
+  bug='num = int(ch) keeps only the last digit, so "45m" becomes 5. Multi-digit numbers need num = num * 10 + digit.')
+
+debug('rw-top-customers', 'Top customers report', 'top_customers',
+  'orders is a list of (customer, amount). Return the names of the k customers with the highest total spend, highest first.',
+  """
+  def top_customers(orders, k):
+      totals = {}
+      for name, amt in orders:
+          totals[name] = totals.get(name, 0) + amt
+      ranked = sorted(totals.items(), key=lambda x: x[1])
+      return [name for name, _ in ranked[:k]]
+  """, """
+  def top_customers(orders, k):
+      totals = {}
+      for name, amt in orders:
+          totals[name] = totals.get(name, 0) + amt
+      ranked = sorted(totals.items(), key=lambda x: x[1], reverse=True)
+      return [name for name, _ in ranked[:k]]
+  """, [[[['a', 5], ['b', 50], ['a', 10], ['c', 1]], 2], [[['x', 3]], 1], [[['p', 1], ['q', 2], ['r', 3]], 3]], tags=R,
+  bug='sorted() is ascending by default, so the report lists the SMALLEST spenders. Add reverse=True.')
+
+debug('rw-business-hours', 'Business hours check', 'is_open',
+  'Support is open from 9:00 up to but not including 17:00. Given hour (0 to 23) and minute, return whether support is open.',
+  """
+  def is_open(hour, minute):
+      return 9 <= hour <= 17
+  """, """
+  def is_open(hour, minute):
+      return 9 <= hour < 17
+  """, [[9, 0], [16, 59], [17, 0], [17, 30], [8, 59]], tags=R,
+  bug='hour <= 17 lets 17:30 count as open. With "up to but not including", the end comparison must be <.')
 
 # ───────────────────────── Coding problems ─────────────────────────
 code('oa-two-sum', 'Pair with target sum', 'pair_indices',

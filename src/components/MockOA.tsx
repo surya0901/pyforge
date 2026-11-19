@@ -40,7 +40,7 @@ export default function MockOA() {
             <Card key={f.id} className="flex flex-col p-5">
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="text-lg font-semibold text-zinc-100">{f.name}</h3>
-                <span className="tnum flex items-center gap-1 text-sm text-zinc-400"><Clock size={14} />{f.minutes} min</span>
+                <span className="tnum flex shrink-0 items-center gap-1 whitespace-nowrap text-sm text-zinc-400"><Clock size={14} />{f.minutes} min</span>
               </div>
               <p className="mt-1.5 flex-1 text-[15px] leading-relaxed text-zinc-300">{f.blurb}</p>
               <p className="mt-2 text-xs text-zinc-500">Based on: {f.basis}</p>
@@ -54,12 +54,17 @@ export default function MockOA() {
       </div>
 
       <h2 className="mb-3 mt-10 text-xl font-semibold text-zinc-100">Practice one problem, no time limit</h2>
-      <div className="grid gap-6 lg:grid-cols-3">
-        {(['debug', 'code', 'build'] as const).map((k) => (
-          <div key={k}>
-            <h3 className="mb-2 font-medium text-zinc-300">{KIND_LABEL[k]} <span className="text-sm text-zinc-500">({OA_PROBLEMS.filter((p) => p.kind === k).length})</span></h3>
+      <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-4">
+        {[
+          { label: 'Real work bugs', list: OA_PROBLEMS.filter((p) => p.kind === 'debug' && p.tags?.includes('real-world')) },
+          { label: 'Classic debugging', list: OA_PROBLEMS.filter((p) => p.kind === 'debug' && !p.tags?.includes('real-world')) },
+          { label: 'Coding', list: OA_PROBLEMS.filter((p) => p.kind === 'code') },
+          { label: 'Build', list: OA_PROBLEMS.filter((p) => p.kind === 'build') },
+        ].map(({ label, list }) => (
+          <div key={label}>
+            <h3 className="mb-2 font-medium text-zinc-300">{label} <span className="text-sm text-zinc-500">({list.length})</span></h3>
             <ul className="divide-y divide-zinc-800 rounded-md border border-zinc-800 bg-zinc-900">
-              {OA_PROBLEMS.filter((p) => p.kind === k).map((p) => (
+              {list.map((p) => (
                 <li key={p.id}>
                   <button onClick={() => practice(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[15px] hover:bg-zinc-950/50">
                     {best[p.id] === 1 ? <CheckCircle2 size={15} className="shrink-0 text-emerald-400" /> : best[p.id] ? <Circle size={15} className="shrink-0 text-amber-400" /> : <Circle size={15} className="shrink-0 text-zinc-600" />}

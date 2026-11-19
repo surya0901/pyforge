@@ -1,4 +1,4 @@
-import { Clock, Copy, ExternalLink, Sparkles } from 'lucide-react';
+import { Clock, Copy, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { PLAYBOOKS } from '../data/companies';
 import { COMPANIES, COMPANY_NAME } from '../data/meta';
@@ -7,9 +7,9 @@ import { getLocal, setLocal, streak } from '../lib/storage';
 import type { CompanyId, Mode, Progress } from '../types';
 import { Bar, Button, Card, SectionTitle } from './ui';
 import { CoachPanel } from './AI';
-import { nextProblems } from './StudyPath';
-import { LESSON_BY_ID, LESSONS } from '../data/lessons';
-import { lessonForSlug, patternsSummary } from '../lib/coverage';
+import DailyChecklist from './DailyChecklist';
+import { LESSONS } from '../data/lessons';
+import { patternsSummary } from '../lib/coverage';
 
 interface Props {
   progress: Progress;
@@ -26,10 +26,6 @@ function greeting() {
 }
 
 export default function Coach({ progress, open, solved, onLearn }: Props) {
-  const nextNc = nextProblems(solved, 1)[0];
-  const ncLessonId = nextNc ? lessonForSlug(nextNc.slug) : undefined;
-  const ncLesson = ncLessonId ? LESSON_BY_ID[ncLessonId] : undefined;
-  const readFirst = ncLesson && !progress.lessons?.[ncLesson.id]?.opened ? ncLesson : undefined;
   const pat = patternsSummary(progress, solved);
   const nextLesson = pat.rows.find((r) => !r.cov.learned)?.lesson ?? LESSONS[0];
   const [targets, setTargets] = useState<CompanyId[]>(() => getLocal(TARGET_KEY, [] as CompanyId[]));
@@ -40,7 +36,6 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
   const { plan, strengths, gaps, dueCards } = useMemo(() => buildPlan(progress, targets), [progress, targets]);
   const shown = targets.length ? targets : PLAYBOOKS.map((p) => p.id);
   const ranked = shown.map((id) => ({ id, ...readiness(id, stats) })).sort((a, b) => b.score - a.score);
-  const totalMin = plan.reduce((s, p) => s + p.minutes, 0);
   const days = streak(progress.days);
   const anyPractice = Object.keys(progress.cards).length > 0 || progress.math.length > 0;
 
@@ -57,28 +52,11 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
       {/* Hero: what to do right now */}
       <section>
         <p className="text-zinc-500">{greeting()}{days > 0 ? `. You are on a ${days}-day streak.` : '.'}</p>
-        <h1 className="mt-1 max-w-[22ch] text-[42px] font-bold leading-[1.05] tracking-[-0.025em] text-zinc-100">
-          <span className="hl">{totalMin} minutes</span> is enough to move the needle today.
+        <h1 className="mt-1 max-w-[24ch] text-[40px] font-bold leading-[1.05] tracking-[-0.025em] text-zinc-100">
+          One checklist a day. <span className="hl">Do it top to bottom.</span>
         </h1>
-        {readFirst && (
-          <button onClick={() => onLearn(readFirst.id)} className="mt-6 flex w-full flex-wrap items-center gap-3 rounded-md border border-amber-500/70 bg-amber-500/5 p-4 text-left transition-colors hover:bg-amber-500/10">
-            <div className="flex-1">
-              <div className="text-sm text-zinc-500">Before {nextNc!.name}, learn the pattern it uses (about 8 min)</div>
-              <div className="text-lg font-semibold text-zinc-100">{readFirst.name}</div>
-            </div>
-            <span className="font-medium text-amber-300">Read the lesson</span>
-          </button>
-        )}
-        {nextNc && (
-          <a href={nextNc.url} target="_blank" rel="noreferrer"
-            className={`${readFirst ? 'mt-3' : 'mt-6'} flex flex-wrap items-center gap-3 rounded-md border border-violet-500 bg-zinc-900 p-4 transition-colors hover:bg-zinc-950`}>
-            <div className="flex-1">
-              <div className="text-sm text-zinc-500">First, solve on NeetCode · {nextNc.section} · {solved.size}/150 done</div>
-              <div className="text-lg font-semibold text-zinc-100">{nextNc.name} <span className="text-sm font-normal text-zinc-500">{nextNc.difficulty}</span></div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 font-medium text-violet-300">Open <ExternalLink size={14} /></span>
-          </a>
-        )}
+        <p className="mt-2 max-w-[62ch] text-zinc-400">Everything else in the sidebar is there when you want more. If you only do this list every day, you are preparing the right way.</p>
+        <DailyChecklist progress={progress} solved={solved} open={open} onLearn={onLearn} />
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           {plan.map((p, i) => {
             const st = stats.find((x) => x.area === p.area);

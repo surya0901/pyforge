@@ -65,8 +65,8 @@ export default function Roadmap({ progress, solved, unlockAll, setUnlockAll, ope
               const cls = st.state === 'done' ? 'border-emerald-500 bg-emerald-500/10'
                 : st.state === 'open' ? 'border-violet-500 bg-zinc-900' : 'border-zinc-800 bg-zinc-950 opacity-70';
               return (
-                <button key={n.id} onClick={() => setSel(n.id)} style={{ left: `${n.x}%`, top: n.row * ROW_H + 14 }}
-                  className={`absolute w-[168px] -translate-x-1/2 rounded-lg border-2 px-3 py-2 text-left transition ${cls} ${isSel ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-zinc-950' : 'hover:brightness-110'}`}>
+                <button key={n.id} onClick={() => setSel(n.id)} style={{ left: `clamp(0px, calc(${n.x}% - 84px), calc(100% - 168px))`, top: n.row * ROW_H + 14 }}
+                  className={`absolute w-[168px] rounded-lg border-2 px-3 py-2 text-left transition ${cls} ${isSel ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-zinc-950' : 'hover:brightness-110'}`}>
                   <span className="flex items-center gap-1.5 text-[13px] font-semibold leading-tight text-zinc-100">
                     {st.state === 'locked' && <Lock size={12} className="shrink-0 text-zinc-500" />}
                     {st.state === 'done' && <Check size={13} className="shrink-0 text-emerald-400" />}

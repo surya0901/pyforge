@@ -1,0 +1,155 @@
+import { Check, Clock, ExternalLink, RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { PATTERN_DRILLS } from '../data';
+import { LESSONS } from '../data/lessons';
+import { NEETCODE } from '../data/neetcode';
+import { patternsSummary } from '../lib/coverage';
+import { getLocal, setLocal, today } from '../lib/storage';
+import type { Mode, Progress } from '../types';
+import { Card } from './ui';
+import { nextProblems } from './StudyPath';
+
+interface FeedJob { id: string; company: string; title: string; location: string; url: string; firstSeenAt?: string; tier: 'target' | 'big' | 'other' }
+interface DayState { manual: Record<string, boolean>; applied: string[]; picks?: string[]; lesson?: string }
+
+const FEED_URL = /github\.io$/.test(location.hostname)
+  ? `${location.origin}/swe-job-tracker/data/apply-feed.json`
+  : 'https://surya0901.github.io/swe-job-tracker/data/apply-feed.json';
+const TRACKER = 'https://surya0901.github.io/swe-job-tracker/';
+const APP_GOAL = 10;
+const PATTERN_IDS = new Set(PATTERN_DRILLS.map((p) => p.id));
+
+interface Props {
+  progress: Progress;
+  solved: Set<string>;
+  open: (m: Mode, opts?: { deck?: string }) => void;
+  onLearn: (lessonId?: string) => void;
+}
+
+export default function DailyChecklist({ progress, solved, open, onLearn }: Props) {
+  const day = today();
+  const key = `pyforge.daily.${day}`;
+  const [state, setState] = useState<DayState>(() => getLocal<DayState>(key, { manual: {}, applied: [] }));
+  const [appliedEver, setAppliedEver] = useState<Record<string, string>>(() => getLocal('pyforge.applied', {}));
+  const [skipped, setSkipped] = useState<Record<string, true>>(() => getLocal('pyforge.skippedJobs', {}));
+  const [feed, setFeed] = useState<FeedJob[] | null>(null);
+  const [feedError, setFeedError] = useState(false);
+
+  // Lock today's NeetCode picks and lesson at the start of the day so the list doesn't shift as you solve.
+  const picks = useMemo(() => state.picks ?? nextProblems(solved, 2).map((p) => p.slug), [state.picks]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lessonId = useMemo(() => state.lesson ?? (patternsSummary(progress, solved).rows.find((r) => !r.cov.learned)?.lesson.id ?? LESSONS[0].id), [state.lesson]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!state.picks || !state.lesson) save({ ...state, picks, lesson: lessonId }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetch(FEED_URL).then((r) => r.json()).then((d) => setFeed(d.jobs)).catch(() => setFeedError(true));
+  }, []);
+
+  function save(s: DayState) { setState(s); setLocal(key, s); }
+  const toggle = (id: string) => save({ ...state, manual: { ...state.manual, [id]: !state.manual[id] } });
+
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const seenToday = (pred: (id: string) => boolean) => Object.entries(progress.cards).filter(([id, c]) => pred(id) && c.lastSeen >= start.getTime()).length;
+  const finderToday = seenToday((id) => PATTERN_IDS.has(id));
+  const cardsToday = seenToday((id) => id.startsWith('fc-'));
+  const oaToday = getLocal<{ at: number }[]>('pyforge.oa.history', []).filter((h) => h.at >= start.getTime()).length;
+  const lesson = LESSONS.find((l) => l.id === lessonId)!;
+  const lessonDone = (progress.lessons?.[lesson.id]?.opened ?? 0) >= start.getTime() || !!progress.lessons?.[lesson.id]?.learned;
+  const pickProbs = picks.map((s) => NEETCODE.find((p) => p.slug === s)!).filter(Boolean);
+  const ncDone = pickProbs.filter((p) => solved.has(p.slug)).length;
+
+  const tasks = [
+    { id: 'neetcode', mins: 70, title: `Solve ${pickProbs.length} NeetCode problems`, detail: pickProbs.map((p) => p.name).join(' and '), done: ncDone >= pickProbs.length || state.manual.neetcode, auto: true,
+      action: pickProbs[ncDone] ? <a href={pickProbs[ncDone].url} target="_blank" rel="noreferrer" className="link">Open {pickProbs[ncDone].name}</a> : null, progress: `${ncDone}/${pickProbs.length}` },
+    { id: 'lesson', mins: 10, title: `Learn the pattern: ${lesson.name}`, detail: 'Read it and pass the quick check before you code.', done: lessonDone || state.manual.lesson, auto: true,
+      action: <button onClick={() => onLearn(lesson.id)} className="link">Read lesson</button> },
+    { id: 'finder', mins: 15, title: 'Pattern finder: 10 questions', detail: 'Name the approach for real problems, with your stopwatch report at the end.', done: finderToday >= 10 || state.manual.finder, auto: true,
+      action: <button onClick={() => open('pattern')} className="link">Start</button>, progress: `${Math.min(finderToday, 10)}/10` },
+    { id: 'oa', mins: 25, title: 'Mock OA: one timed set', detail: 'The 20 minute debugging section on weekdays, a full 2 problem OA on weekends.', done: oaToday > 0 || state.manual.oa, auto: true,
+      action: <button onClick={() => open('oa')} className="link">Open Mock OA</button> },
+    { id: 'cards', mins: 10, title: 'Flashcards: 15 cards', detail: 'Due cards first. Mix in C++ and systems if you are targeting HRT, Citadel or Nvidia.', done: cardsToday >= 15 || state.manual.cards, auto: true,
+      action: <button onClick={() => open('cards')} className="link">Review</button>, progress: `${Math.min(cardsToday, 15)}/15` },
+    { id: 'story', mins: 10, title: 'Behavioral: one STAR story out loud', detail: 'Pick a question on the Companies page, answer it out loud in 2 minutes, then check it.', done: !!state.manual.story, auto: false,
+      action: <button onClick={() => open('companies')} className="link">Pick a question</button> },
+    { id: 'apply', mins: 100, title: `Submit ${APP_GOAL} quality applications`, detail: 'About 10 minutes each: read the posting, match 2 or 3 of its keywords in your resume bullets, apply, then message one engineer or recruiter there.', done: state.applied.length >= APP_GOAL || state.manual.apply, auto: true,
+      progress: `${Math.min(state.applied.length, APP_GOAL)}/${APP_GOAL}` },
+  ];
+  const doneMins = tasks.filter((t) => t.done).reduce((a, t) => a + t.mins, 0);
+  const totalMins = tasks.reduce((a, t) => a + t.mins, 0);
+  const doneCount = tasks.filter((t) => t.done).length;
+  const hrs = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`);
+
+  const queue = (feed ?? []).filter((j) => !appliedEver[j.id] && !skipped[j.id]).slice(0, Math.max(0, APP_GOAL - state.applied.length) + 3);
+  const markApplied = (j: FeedJob) => {
+    const ever = { ...appliedEver, [j.id]: day };
+    setAppliedEver(ever); setLocal('pyforge.applied', ever);
+    save({ ...state, applied: [...state.applied, j.id] });
+  };
+  const skip = (j: FeedJob) => { const s = { ...skipped, [j.id]: true as const }; setSkipped(s); setLocal('pyforge.skippedJobs', s); };
+  const undoLast = () => {
+    const last = state.applied[state.applied.length - 1];
+    if (!last) return;
+    const ever = { ...appliedEver }; delete ever[last];
+    setAppliedEver(ever); setLocal('pyforge.applied', ever);
+    save({ ...state, applied: state.applied.slice(0, -1) });
+  };
+
+  return (
+    <Card className="mt-8 p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Today's checklist</h2>
+        <span className="tnum text-sm text-zinc-400"><Clock size={13} className="mr-1 inline" />{hrs(totalMins - doneMins)} left of about {hrs(totalMins)} · {doneCount}/{tasks.length} done</span>
+      </div>
+      <p className="mt-1 text-sm text-zinc-500">Resets every morning. Work top to bottom: learn, solve, drill, then apply. Most items tick themselves when you do them here.</p>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-emerald-500 transition-[width]" style={{ width: `${(doneMins / totalMins) * 100}%` }} /></div>
+
+      <ol className="mt-5 space-y-2">
+        {tasks.map((t) => (
+          <li key={t.id} className={`flex gap-3 rounded-lg border px-4 py-3 ${t.done ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800'}`}>
+            <button onClick={() => toggle(t.id)} aria-label={t.done ? 'Mark not done' : 'Mark done'}
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${t.done ? 'border-emerald-500 bg-emerald-500 text-zinc-950' : 'border-zinc-600 hover:border-zinc-400'}`}>
+              {t.done && <Check size={13} strokeWidth={3} />}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className={`font-medium ${t.done ? 'text-zinc-400 line-through decoration-zinc-600' : 'text-zinc-100'}`}>{t.title}</span>
+                <span className="tnum text-xs text-zinc-500">~{t.mins} min{t.progress ? ` · ${t.progress}` : ''}</span>
+              </div>
+              <p className="text-sm text-zinc-500">{t.detail}</p>
+            </div>
+            {!t.done && t.action && <div className="shrink-0 self-center text-sm">{t.action}</div>}
+          </li>
+        ))}
+      </ol>
+
+      <section className="mt-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-lg font-semibold text-zinc-100">Today's {APP_GOAL} applications <span className="tnum text-sm font-normal text-zinc-500">{state.applied.length}/{APP_GOAL} · {Object.keys(appliedEver).length} all time</span></h3>
+          <span className="flex gap-3 text-sm">
+            {state.applied.length > 0 && <button onClick={undoLast} className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300"><RotateCcw size={13} />Undo last</button>}
+            <a href={TRACKER} target="_blank" rel="noreferrer" className="link">Full job tracker</a>
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-zinc-500">Open US new grad and entry level SWE roles from your tracker. Your target companies come first, then other big companies, newest first.</p>
+        {feedError && <p className="mt-3 text-sm text-rose-300">Couldn't load roles here. Open the full job tracker instead.</p>}
+        {!feed && !feedError && <p className="mt-3 text-sm text-zinc-500">Loading roles…</p>}
+        {feed && (
+          <ul className="mt-3 divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+            {queue.map((j) => (
+              <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-zinc-100">{j.company}</span>
+                  {j.tier !== 'other' && <span className={`ml-2 rounded px-1.5 py-px text-[11px] ${j.tier === 'target' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>{j.tier === 'target' ? 'your list' : 'big company'}</span>}
+                  <span className="block truncate text-sm text-zinc-400">{j.title} · {j.location}</span>
+                </div>
+                <a href={j.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2.5 py-1 text-sm text-zinc-200 hover:border-zinc-500">Open<ExternalLink size={12} /></a>
+                <button onClick={() => markApplied(j)} className="rounded-md bg-violet-600 px-2.5 py-1 text-sm font-medium text-white hover:bg-violet-700">Applied</button>
+                <button onClick={() => skip(j)} className="text-sm text-zinc-500 hover:text-zinc-300">Skip</button>
+              </li>
+            ))}
+            {!queue.length && <li className="px-4 py-3 text-sm text-zinc-400">You've worked through every open role in the feed. New ones appear as the tracker finds them.</li>}
+          </ul>
+        )}
+      </section>
+    </Card>
+  );
+}

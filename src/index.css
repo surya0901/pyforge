@@ -102,3 +102,7 @@ select option, select optgroup { background: rgb(var(--ink-900)); color: rgb(var
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: rgb(var(--ink-700)); border-radius: 8px; border: 2px solid rgb(var(--ink-950)); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  .link { @apply font-medium text-violet-300 hover:underline; }
+}
