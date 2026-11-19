@@ -1,0 +1,132 @@
+/**
+ * Runs Python in the browser with Pyodide inside a Web Worker, so an infinite
+ * loop can be killed without freezing the page. The runtime is served from
+ * the pyforge site (/pyodide/), about 10 MB, downloaded once and cached.
+ */
+export interface TestResult { ok: boolean; got?: string; expected?: string; error?: string; line?: number; stdout?: string; ms?: number }
+export interface RunResult { compileError?: string; line?: number; results: TestResult[]; timeout?: boolean; loadError?: string }
+
+const SITE = 'https://surya0901.github.io/pyforge/';
+const onSite = /github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
+const PY_BASE = onSite ? new URL('./', document.baseURI).href : SITE;
+
+const HARNESS = String.raw`
+import json, copy, sys, io, time, traceback
+
+def _norm(x):
+    return json.loads(json.dumps(x, default=lambda o: list(o) if isinstance(o, (set, tuple)) else repr(o)))
+
+def _line(tb):
+    frames = [f for f in traceback.extract_tb(tb) if f.filename == "solution.py"]
+    return frames[-1].lineno if frames else None
+
+def _short(x, n=300):
+    s = json.dumps(x) if not isinstance(x, str) else json.dumps(x)
+    return s if len(s) <= n else s[:n] + "…"
+
+def _same(a, b, cmp):
+    if cmp == "unordered" and isinstance(a, list) and isinstance(b, list):
+        return sorted(map(json.dumps, a)) == sorted(map(json.dumps, b))
+    return a == b
+
+def pyforge_run(payload):
+    p = json.loads(payload)
+    ns = {"__name__": "solution"}
+    out = io.StringIO()
+    real = sys.stdout
+    sys.stdout = out
+    try:
+        exec(compile(p["src"], "solution.py", "exec"), ns)
+    except SyntaxError as e:
+        sys.stdout = real
+        return json.dumps({"compileError": f"{type(e).__name__}: {e.msg}", "line": e.lineno, "results": []})
+    except Exception as e:
+        sys.stdout = real
+        return json.dumps({"compileError": f"{type(e).__name__}: {e}", "line": _line(e.__traceback__), "results": []})
+    sys.stdout = real
+    target = ns.get(p["func"])
+    if target is None:
+        return json.dumps({"compileError": f"NameError: {p['func']} is not defined. Keep the given name.", "results": []})
+    results = []
+    for args, exp in zip(p["tests"], p["expected"]):
+        out = io.StringIO()
+        sys.stdout = out
+        t0 = time.perf_counter()
+        try:
+            if p["kind"] == "build":
+                obj = None
+                got = []
+                for method, a in args:
+                    if method == "__init__":
+                        obj = target(*copy.deepcopy(a))
+                        got.append(None)
+                    else:
+                        got.append(getattr(obj, method)(*copy.deepcopy(a)))
+            else:
+                got = target(*copy.deepcopy(args))
+            got = _norm(got)
+            ok = _same(got, exp, p["cmp"])
+            res = {"ok": ok, "got": _short(got), "expected": _short(exp)}
+        except Exception as e:
+            res = {"ok": False, "error": f"{type(e).__name__}: {e}", "line": _line(e.__traceback__), "expected": _short(exp)}
+        finally:
+            sys.stdout = real
+        res["ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        printed = out.getvalue()
+        if printed:
+            res["stdout"] = printed[-500:]
+        results.append(res)
+    return json.dumps({"results": results})
+`;
+
+const WORKER_SRC = `
+let py = null;
+self.onmessage = async (e) => {
+  const { type, id, base, payload, harness } = e.data;
+  try {
+    if (type === 'init') {
+      const { loadPyodide } = await import(base + 'pyodide/pyodide.mjs');
+      py = await loadPyodide({ indexURL: base + 'pyodide/' });
+      py.runPython(harness);
+      self.postMessage({ id, ok: true });
+    } else if (type === 'run') {
+      py.globals.set('__payload', payload);
+      const out = py.runPython('pyforge_run(__payload)');
+      self.postMessage({ id, ok: true, out });
+    }
+  } catch (err) {
+    self.postMessage({ id, ok: false, error: String(err && err.message || err) });
+  }
+};`;
+
+let worker: Worker | null = null;
+let ready: Promise<void> | null = null;
+let seq = 0;
+const pending = new Map<number, (m: { ok: boolean; out?: string; error?: string }) => void>();
+
+function call(msg: Record<string, unknown>): Promise<{ ok: boolean; out?: string; error?: string }> {
+  const id = ++seq;
+  return new Promise((res) => { pending.set(id, res); worker!.postMessage({ ...msg, id }); });
+}
+
+export function warmUp(): Promise<void> {
+  if (ready) return ready;
+  worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })), { type: 'module' });
+  worker.onmessage = (e) => { const r = pending.get(e.data.id); pending.delete(e.data.id); r?.(e.data); };
+  ready = call({ type: 'init', base: PY_BASE, harness: HARNESS }).then((m) => {
+    if (!m.ok) { ready = null; worker?.terminate(); worker = null; throw new Error(m.error); }
+  });
+  return ready;
+}
+
+function kill() { worker?.terminate(); worker = null; ready = null; pending.clear(); }
+
+export async function runTests(src: string, func: string, kind: string, tests: unknown[], expected: unknown[], cmp: string, timeoutMs = 8000): Promise<RunResult> {
+  try { await warmUp(); } catch (e) { return { results: [], loadError: `Couldn't start Python here (${String((e as Error).message).slice(0, 120)}). Use the pyforge website: ${SITE}` }; }
+  const payload = JSON.stringify({ src, func, kind, tests, expected, cmp });
+  const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
+  const res = await Promise.race([call({ type: 'run', payload }), timer]);
+  if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { results: [], timeout: true }; }
+  if (!res.ok) return { results: [], compileError: res.error };
+  return JSON.parse(res.out!) as RunResult;
+}

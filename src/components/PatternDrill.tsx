@@ -13,19 +13,22 @@ interface Props {
   onLearn?: (lessonId: string) => void;
 }
 
-const LIMIT = 45;
+const SESSION = 10;
+const TARGETS = [{ s: 0, label: 'No target' }, { s: 60, label: '60 s' }, { s: 90, label: '90 s' }, { s: 120, label: '2 min' }];
+const fmtS = (x: number) => (x >= 60 ? `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}` : `${x.toFixed(0)}s`);
 
 export default function PatternDrill({ queue, onResult, onLearn }: Props) {
   const [idx, setIdx] = useState(0);
   const [running, setRunning] = useState(false);
-  const [timed, setTimed] = useState(false);
+  const [target, setTarget] = useState(() => Number(localStorage.getItem('pyforge.finderTarget') ?? 90));
+  const [log, setLog] = useState<{ id: string; title: string; secs: number; right: boolean }[]>([]);
+  const [summary, setSummary] = useState(false);
   const ex = queue[idx % Math.max(queue.length, 1)];
   const [pick, setPick] = useState<string | null>(null);
-  const [timedOut, setTimedOut] = useState(false);
-  const [left, setLeft] = useState(LIMIT);
+  const [secs, setSecs] = useState(0);
   const [score, setScore] = useState({ right: 0, total: 0 });
   const start = useRef(0);
-  const done = pick !== null || timedOut;
+  const done = pick !== null;
 
   const options = useMemo(() => {
     if (!ex) return [];
@@ -34,32 +37,36 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
     return shuffle([ex.answer, ...conf, ...fill]);
   }, [ex, idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { setPick(null); setTimedOut(false); setLeft(LIMIT); start.current = Date.now(); }, [idx, running]);
+  useEffect(() => { setPick(null); setSecs(0); start.current = Date.now(); }, [idx, running]);
 
-  const finish = (p: string | null, timeout = false) => {
+  // A stopwatch, not a countdown: you are never cut off, but the session report tells you if you were on pace.
+  useEffect(() => {
+    if (!running || done || summary) return;
+    const t = setInterval(() => setSecs((Date.now() - start.current) / 1000), 250);
+    return () => clearInterval(t);
+  }, [running, done, summary, idx]);
+
+  const finish = (p: string | null) => {
     if (done || !ex) return;
-    if (timeout) setTimedOut(true); else setPick(p);
+    setPick(p);
     const right = p === ex.answer;
-    const secs = (Date.now() - start.current) / 1000;
-    onResult(ex.id, right ? (timed && secs < 15 ? 3 : 2) : 0, right ? [] : [timeout ? 'timeout' : 'pattern-miss']);
+    const took = (Date.now() - start.current) / 1000;
+    setSecs(took);
+    onResult(ex.id, right ? (target && took <= target / 2 ? 3 : 2) : 0, right ? [] : ['pattern-miss']);
     setScore((s) => ({ right: s.right + (right ? 1 : 0), total: s.total + 1 }));
+    setLog((l) => [...l, { id: ex.id, title: ex.title, secs: took, right }]);
   };
 
-  useEffect(() => {
-    if (!running || done || !timed) return;
-    const t = setInterval(() => {
-      const remain = LIMIT - (Date.now() - start.current) / 1000;
-      setLeft(Math.max(0, remain));
-      if (remain <= 0) finish(null, true);
-    }, 100);
-    return () => clearInterval(t);
-  });
-
-  const next = () => setIdx((i) => i + 1);
+  const sessionLen = Math.max(1, Math.min(SESSION, queue.length));
+  const next = () => {
+    if (log.length && log.length % sessionLen === 0 && !summary) { setSummary(true); return; }
+    setIdx((i) => i + 1);
+  };
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (summary) { if (e.key === 'Enter') { e.preventDefault(); setSummary(false); setIdx((i) => i + 1); } return; }
       if (!running) { if (e.key === 'Enter') { e.preventDefault(); setRunning(true); } return; }
       if (done) { if (e.key === 'Enter') { e.preventDefault(); next(); } return; }
       const n = Number(e.key);
@@ -71,6 +78,43 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
 
   if (!ex) return null;
 
+  if (summary) {
+    const batch = log.slice(-sessionLen);
+    const right = batch.filter((x) => x.right).length;
+    const avg = batch.reduce((a, x) => a + x.secs, 0) / batch.length;
+    const onPace = target ? batch.filter((x) => x.secs <= target).length : batch.length;
+    const slow = [...batch].sort((a, b) => b.secs - a.secs).filter((x) => target && x.secs > target);
+    const verdict = right / batch.length >= 0.8 && (!target || onPace / batch.length >= 0.8)
+      ? 'Interview ready on these. Try a tighter target next.'
+      : right / batch.length < 0.6 ? 'Accuracy first: reread the lessons for the ones you missed before worrying about speed.'
+      : 'Getting there. Speed comes from spotting the clue words, so reread the clue for your slowest ones.';
+    return (
+      <Card className="mx-auto max-w-2xl p-7">
+        <h2 className="text-2xl font-bold text-zinc-100">Session report</h2>
+        <p className="mt-1 text-zinc-400">{verdict}</p>
+        <div className="mt-5 grid grid-cols-3 gap-3 text-center">
+          <div className="rounded-lg bg-zinc-950 p-3"><div className="tnum text-2xl font-bold text-zinc-100">{right}/{batch.length}</div><div className="text-sm text-zinc-500">right</div></div>
+          <div className="rounded-lg bg-zinc-950 p-3"><div className="tnum text-2xl font-bold text-zinc-100">{fmtS(avg)}</div><div className="text-sm text-zinc-500">average time</div></div>
+          <div className="rounded-lg bg-zinc-950 p-3"><div className={`tnum text-2xl font-bold ${!target || onPace === batch.length ? 'text-emerald-300' : 'text-amber-300'}`}>{target ? `${onPace}/${batch.length}` : 'Off'}</div><div className="text-sm text-zinc-500">{target ? `within ${fmtS(target)}` : 'no target set'}</div></div>
+        </div>
+        <h3 className="mb-2 mt-6 font-semibold text-zinc-100">Every question</h3>
+        <ul className="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+          {batch.map((x, i) => (
+            <li key={i} className="flex items-center gap-3 px-3 py-2 text-[15px]">
+              {x.right ? <CheckCircle2 size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-rose-400" />}
+              <span className="flex-1 text-zinc-200">{x.title}</span>
+              <span className={`tnum font-mono text-sm ${target && x.secs > target ? 'text-amber-300' : 'text-zinc-400'}`}>{fmtS(x.secs)}{target && x.secs > target ? ' over' : ''}</span>
+            </li>
+          ))}
+        </ul>
+        {slow.length > 0 && <p className="mt-3 text-sm text-zinc-400">Over target: {slow.map((x) => x.title).join(', ')}. In a real interview you have a minute or two to name the approach before you start coding.</p>}
+        <div className="mt-6 flex gap-2">
+          <Button onClick={() => { setSummary(false); setIdx((i) => i + 1); }}>Next {sessionLen} questions <Kbd>Enter</Kbd></Button>
+        </div>
+      </Card>
+    );
+  }
+
   if (!running) {
     return (
       <Card className="mx-auto max-w-xl p-8 text-center">
@@ -78,14 +122,18 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
         <h2 className="text-lg font-semibold text-zinc-100">Pattern finder</h2>
         <p className="mt-2 text-zinc-400">
           You get a real interview problem with an example and constraints. Pick the pattern that gives the most
-          efficient solution. Every answer comes with the clue to spot, the brute force, the optimal idea, and why
-          the tempting wrong choices fail.
+          efficient solution. A stopwatch tracks each answer but never cuts you off. After every {sessionLen} questions
+          you get a report on accuracy and whether you were on pace.
         </p>
-        <p className="mt-2 text-sm text-zinc-500">{queue.length} problems unlocked · keys <Kbd>1</Kbd>–<Kbd>4</Kbd></p>
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <Button onClick={() => { setTimed(false); setRunning(true); }}><Play size={15} />Practice, no timer <Kbd>Enter</Kbd></Button>
-          <Button variant="subtle" onClick={() => { setTimed(true); setRunning(true); }}><Timer size={15} />Interview pace, {LIMIT}s each</Button>
+        <p className="mt-4 text-sm font-medium text-zinc-300">Target time per question</p>
+        <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+          {TARGETS.map((t) => (
+            <button key={t.s} onClick={() => { setTarget(t.s); localStorage.setItem('pyforge.finderTarget', String(t.s)); }}
+              className={`rounded-full border px-3 py-1 text-sm ${target === t.s ? 'border-violet-500 bg-violet-500/10 text-zinc-100' : 'border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>{t.label}</button>
+          ))}
         </div>
+        <p className="mt-3 text-sm text-zinc-500">{queue.length} problems unlocked · keys <Kbd>1</Kbd>–<Kbd>4</Kbd></p>
+        <Button className="mt-5" onClick={() => setRunning(true)}><Play size={15} />Start <Kbd>Enter</Kbd></Button>
       </Card>
     );
   }
@@ -102,12 +150,12 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-3 flex items-center justify-between text-sm text-zinc-500">
-        <span className="tnum">Problem {(idx % queue.length) + 1} of {queue.length}</span>
+        <span className="tnum">Question {(log.length - (done ? 1 : 0)) % sessionLen + 1} of {sessionLen} this session</span>
         <span className="tnum">{score.right} of {score.total} right this session</span>
       </div>
-      {timed && (
+      {target > 0 && !done && (
         <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-          <div className={`h-full transition-[width] duration-100 ${left / LIMIT > 0.5 ? 'bg-emerald-500' : left / LIMIT > 0.2 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${(done ? 0 : left / LIMIT) * 100}%` }} />
+          <div className={`h-full transition-[width] duration-200 ${secs <= target * 0.75 ? 'bg-emerald-500' : secs <= target ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(1, secs / target) * 100}%` }} />
         </div>
       )}
 
@@ -115,7 +163,7 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <DiffTag d={ex.difficulty} />
           <CompanyTags ids={ex.companies} />
-          {!done && timed && <span className="ml-auto font-mono text-sm text-zinc-300">{left.toFixed(0)}s</span>}
+          <span className={`tnum ml-auto font-mono text-sm ${target && secs > target ? 'text-rose-300' : 'text-zinc-300'}`}>{fmtS(secs)}{target ? ` / ${fmtS(target)}` : ''}</span>
         </div>
         <h3 className="text-xl font-semibold text-zinc-100">{ex.title}</h3>
         <p className="mt-2 text-[17px] leading-relaxed text-zinc-200">{ex.statement}</p>
@@ -137,7 +185,7 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
         <Card className="mt-5 p-5">
           <p className="mb-4 flex flex-wrap items-center gap-2 font-medium">
             {right ? <><CheckCircle2 size={18} className="text-emerald-400" /><span className="text-emerald-300">Right.</span></>
-              : <><XCircle size={18} className="text-rose-400" /><span className="text-rose-300">{timedOut ? 'Time’s up.' : 'Not this one.'}</span></>}
+              : <><XCircle size={18} className="text-rose-400" /><span className="text-rose-300">Not this one.</span></>}
             <span className="text-zinc-300">The best fit is <span className="hl font-semibold text-zinc-100">{ans.name}</span>.</span>
           </p>
           <div className="space-y-4 text-[15px] leading-relaxed">

@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Briefcase, Bug, Calculator, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
+import { BarChart3, BookOpen, Briefcase, Bug, Calculator, ClipboardCheck, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BugHunter from './components/BugHunter';
 import Coach from './components/Coach';
@@ -10,6 +10,7 @@ import MentalMath from './components/MentalMath';
 import PatternDrill from './components/PatternDrill';
 import Patterns from './components/Patterns';
 import Roadmap from './components/Roadmap';
+import MockOA from './components/MockOA';
 import { getUnlockAll, isUnlocked, roadmapStatus, saveUnlockAll, solvedDrillIds } from './lib/roadmap';
 import { ReferenceContent, ReferenceDrawer } from './components/Reference';
 import StudyPath from './components/StudyPath';
@@ -28,6 +29,7 @@ const GROUPS: { name: string; items: NavItem[] }[] = [
     { id: 'syntax', label: 'Syntax recall', icon: Keyboard, key: 's' },
     { id: 'bug', label: 'Bug hunter', icon: Bug, key: 'b' },
     { id: 'pattern', label: 'Pattern finder', icon: Target, key: 'p' },
+    { id: 'oa', label: 'Mock OA', icon: ClipboardCheck, key: 'a' },
     { id: 'math', label: 'Mental math', icon: Calculator, key: 'm' },
   ] },
   { name: 'Interview prep', items: [
@@ -182,6 +184,7 @@ export default function App() {
     switch (mode) {
       case 'coach': return <Coach progress={progress} open={open} solved={solved} onLearn={learn} />;
       case 'path': return <StudyPath progress={progress} solved={solved} syncedAt={ncCloud?.updatedAt ?? ncSyncedAt} cloud={cloud && !!ncCloud} pace={pace} setPace={setPace} toggleLocal={toggleLocal} open={open} />;
+      case 'oa': return <MockOA />;
       case 'roadmap': return <Roadmap progress={progress} solved={solved} unlockAll={unlockAll} setUnlockAll={setUnlockAll} open={open} onLearn={learn} />;
       case 'learn': return <Patterns key={`${lessonSel}-${session}`} progress={progress} solved={solved} initial={lessonSel} onLesson={onLesson} open={open} />;
       case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><Dashboard progress={progress} go={go} reset={() => setProgress(emptyProgress())} /></>;

@@ -7,7 +7,7 @@ import { mastery } from './storage';
 
 export interface AreaStat { area: Area; name: string; items: number; seen: number; attempts: number; accuracy: number; mastery: number }
 
-const DECK_AREA: Record<string, Area> = { behavioral: 'behavioral', fundamentals: 'fundamentals', python: 'python', design: 'design', quant: 'quant', 'gpu-ai': 'gpu-ai' };
+const DECK_AREA: Record<string, Area> = { behavioral: 'behavioral', fundamentals: 'fundamentals', 'cpp-systems': 'fundamentals', python: 'python', design: 'design', quant: 'quant', 'gpu-ai': 'gpu-ai' };
 
 export const AREA_MODE: Record<Area, Mode> = {
   syntax: 'syntax', bugs: 'bug', patterns: 'pattern', math: 'math', design: 'design',
