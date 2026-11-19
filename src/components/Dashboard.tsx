@@ -5,6 +5,7 @@ import { COMPANIES, PATTERNS } from '../data/meta';
 import { averageMastery, mastery, streak } from '../lib/storage';
 import type { CompanyId, Mode, PatternId, Progress } from '../types';
 import { Bar, Button, Card } from './ui';
+import { WeakIdioms } from './BlueprintBuilder';
 
 const MISTAKE_LABEL: Record<string, string> = {
   'bool-case': 'true/false instead of True/False',
@@ -180,6 +181,7 @@ export default function Dashboard({ progress, go, reset }: Props) {
             <Button variant="ghost" onClick={() => { if (armed) { reset(); setArmed(false); } else { setArmed(true); setTimeout(() => setArmed(false), 3000); } }}><RotateCcw size={14} />{armed ? 'Click again to erase' : 'Reset'}</Button>
           </div>
         </Card>
+        <WeakIdioms />
       </div>
     </div>
   );

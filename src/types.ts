@@ -83,7 +83,7 @@ export interface PatternExercise extends Base {
 }
 
 export type Exercise = SyntaxExercise | BugExercise | PatternExercise;
-export type Mode = 'coach' | 'roadmap' | 'oa' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
+export type Mode = 'blueprint' | 'coach' | 'roadmap' | 'oa' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
 
 export interface CardState {
   reps: number;
@@ -123,4 +123,23 @@ export interface OAProblem {
   explain: string;
   difficulty: 'easy' | 'medium' | 'hard';
   tags?: string[];
+}
+
+export interface BlueprintStep { text: string; clue: string; template: string; code: string; idioms: string[] }
+export interface Blueprint {
+  id: string;
+  title: string;
+  nc: string;
+  difficulty: Difficulty;
+  pattern: string;
+  statement: string;
+  example: string;
+  signature: string;
+  steps: BlueprintStep[];
+  tests: unknown[][];
+  postlude: string;
+  check: string | null;
+  solution: string;
+  func: string;
+  expected: unknown[];
 }

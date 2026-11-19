@@ -14,7 +14,7 @@ import { patternsSummary } from '../lib/coverage';
 interface Props {
   progress: Progress;
   solved: Set<string>;
-  open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all' }) => void;
+  open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all'; focus?: string }) => void;
   onLearn: (lessonId?: string) => void;
 }
 

@@ -6,10 +6,11 @@ interface Props {
   onRun?: () => void;
   errorLine?: number;
   minRows?: number;
+  onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
 }
 
 /** A light Python editor: line numbers, Tab = 4 spaces, auto-indent, Cmd/Ctrl+Enter to run. */
-export default function CodeEditor({ value, onChange, onRun, errorLine, minRows = 14 }: Props) {
+export default function CodeEditor({ value, onChange, onRun, errorLine, minRows = 14, onPaste }: Props) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
   const lines = value.split('\n').length;
@@ -68,6 +69,8 @@ export default function CodeEditor({ value, onChange, onRun, errorLine, minRows 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKey}
+        onPaste={onPaste}
+        onDrop={onPaste ? (e) => e.preventDefault() : undefined}
         onScroll={(e) => { if (gutter.current) gutter.current.scrollTop = e.currentTarget.scrollTop; }}
         spellCheck={false}
         autoCapitalize="off"

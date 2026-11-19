@@ -7,6 +7,7 @@ import { patternsSummary } from '../lib/coverage';
 import { getLocal, setLocal, today } from '../lib/storage';
 import type { Mode, Progress } from '../types';
 import { Card } from './ui';
+import { blueprintLog, nextBlueprint } from './BlueprintBuilder';
 import { nextProblems } from './StudyPath';
 
 interface FeedJob { id: string; company: string; title: string; location: string; url: string; posted?: string; ageDays?: number; tier: 'target' | 'big' | 'other' }
@@ -23,7 +24,7 @@ const PATTERN_IDS = new Set(PATTERN_DRILLS.map((p) => p.id));
 interface Props {
   progress: Progress;
   solved: Set<string>;
-  open: (m: Mode, opts?: { deck?: string }) => void;
+  open: (m: Mode, opts?: { deck?: string; focus?: string }) => void;
   onLearn: (lessonId?: string) => void;
 }
 
@@ -57,6 +58,8 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const lessonChecks = lesson.check.filter((_, i) => progress.lessons?.[lesson.id]?.checks?.[i]).length;
   // Opening the lesson isn't enough: it counts once every quick check is passed.
   const lessonDone = lessonChecks === lesson.check.length;
+  const bpToday = blueprintLog().filter((h) => h.at >= start.getTime());
+  const bpNext = nextBlueprint(lessonId);
   const pickProbs = picks.map((s) => NEETCODE.find((p) => p.slug === s)!).filter(Boolean);
   const ncDone = pickProbs.filter((p) => solved.has(p.slug)).length;
 
@@ -65,6 +68,8 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
       action: pickProbs[ncDone] ? <a href={pickProbs[ncDone].url} target="_blank" rel="noreferrer" className="link">Open {pickProbs[ncDone].name}</a> : null, progress: `${ncDone}/${pickProbs.length}` },
     { id: 'lesson', mins: 15, title: `Learn the pattern: ${lesson.name}`, detail: 'Read the lesson, watch one of its linked videos, then pass every quick check question.', done: lessonDone || state.manual.lesson, auto: true, progress: `${lessonChecks}/${lesson.check.length} checks`,
       action: <button onClick={() => onLearn(lesson.id)} className="link">Read lesson</button> },
+    { id: 'blueprint', mins: 20, title: 'Blueprint builder: one problem, then its blind pass', detail: 'Type the solution step by step with hints, then type it again from just the function line. This is the fix for freezing on a blank editor.', done: bpToday.some((h) => h.blind) || state.manual.blueprint, auto: true,
+      action: <button onClick={() => open('blueprint', { focus: bpNext.id })} className="link">Open {bpNext.title}</button>, progress: `${Math.min(bpToday.length, 2)}/2 passes` },
     { id: 'finder', mins: 15, title: 'Pattern finder: 10 questions', detail: 'Name the approach for real problems, with your stopwatch report at the end.', done: finderToday >= 10 || state.manual.finder, auto: true,
       action: <button onClick={() => open('pattern')} className="link">Start</button>, progress: `${Math.min(finderToday, 10)}/10` },
     { id: 'oa', mins: 25, title: 'Mock OA: one timed set', detail: 'The 20 minute debugging section on weekdays, a full 2 problem OA on weekends.', done: oaToday > 0 || state.manual.oa, auto: true,
