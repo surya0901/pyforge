@@ -31,7 +31,33 @@ const use = async <T,>(name: string): Promise<T | null> => {
 };
 
 export const getDB = () => use<DB>('db');
-export const getSample = () => use<SampleFn>('sample');
+/**
+ * Claude, when it's available: built in on the claude.ai copy, or on the website with your own
+ * Anthropic API key (saved only in this browser, sent only to api.anthropic.com).
+ */
+export const API_KEY = 'pyforge.anthropicKey';
+export const API_MODEL = 'claude-haiku-5-5';
+export async function getSample(): Promise<SampleFn | null> {
+  const built = await use<SampleFn>('sample');
+  if (built) return built;
+  let key = '';
+  try { key = localStorage.getItem(API_KEY) ?? ''; } catch { /* storage blocked */ }
+  if (!key) return null;
+  return async (input, opts) => {
+    const messages = typeof input === 'string' ? [{ role: 'user', content: input }] : input;
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: (opts?.signal as AbortSignal | undefined) ?? undefined,
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: API_MODEL, max_tokens: 800, messages }),
+    });
+    if (!res.ok) { const e = new Error(`Claude API ${res.status}`) as Error & { code?: string }; e.code = res.status === 429 ? 'rate_limited' : 'api_error'; throw e; }
+    const j = await res.json();
+    const text = (j.content ?? []).map((b: { text?: string }) => b.text ?? '').join('');
+    (opts?.onText as ((x: { text: string }) => void) | undefined)?.({ text });
+    return { text };
+  };
+}
 
 export const PROGRESS_PATH = 'pyforge/progress';
 export const NEETCODE_PATH = 'pyforge/neetcode';

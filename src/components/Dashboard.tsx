@@ -8,7 +8,7 @@ import { Bar, Button, Card } from './ui';
 import { WeakIdioms } from './BlueprintBuilder';
 import { allPrep } from '../lib/prep';
 
-const MISTAKE_LABEL: Record<string, string> = {
+export const MISTAKE_LABEL: Record<string, string> = {
   'bool-case': 'true/false instead of True/False',
   none: 'null/none instead of None',
   'logic-ops': '&& / || / ! instead of and/or/not',

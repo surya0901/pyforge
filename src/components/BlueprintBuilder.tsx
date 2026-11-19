@@ -5,6 +5,7 @@ import { LESSONS } from '../data/lessons';
 import { checkSteps, runTests, warmUp, type RunResult, type StepCheck, type StepReport } from '../lib/pyrunner';
 import type { SampleFn } from '../lib/cloud';
 import { useSample } from './AI';
+import { logMistake, SLIP_KINDS, blueprintForWeakness } from '../lib/mistakes';
 import { getLocal, setLocal } from '../lib/storage';
 import type { Blueprint } from '../types';
 import CodeEditor from './CodeEditor';
@@ -34,6 +35,10 @@ function starter(p: Blueprint, blind: boolean) {
 /** The next problem worth doing: unfinished guided first, then a blind pass you haven't done. */
 export function nextBlueprint(preferPattern?: string): Blueprint {
   const st = getStatus();
+  // Your most frequent logic mistake picks the problem that trains it.
+  const weak = blueprintForWeakness();
+  const wb = weak ? BLUEPRINTS.find((b) => b.id === weak) : undefined;
+  if (wb && !st[wb.id]?.blind) return wb;
   const pool = BLUEPRINTS.filter((p) => !st[p.id]?.blind);
   return pool.find((p) => p.pattern === preferPattern && !st[p.id]?.guided)
     ?? pool.find((p) => !st[p.id]?.guided)
@@ -243,11 +248,12 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
   const runCheck = async (src: string) => {
     const my = ++seq.current;
     setChecking(true);
-    const c = await checkSteps({ user: src, ref, fname, call: p.func, tests: p.tests, postlude: p.postlude, nsteps: p.steps.length });
-    if (my !== seq.current) return;
+    const c = await checkSteps({ user: src, ref, fname, call: p.func, tests: p.tests, expected: p.expected, postlude: p.postlude, nsteps: p.steps.length });
+    if (my !== seq.current) return c;
     setChecking(false);
     setCheck(c);
     if (c.steps) setLastGood(c.steps);
+    return c;
   };
 
   // Check the logic a moment after you stop typing.
@@ -283,7 +289,7 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
   }
 
   async function run() {
-    runCheck(code);
+    const checked = runCheck(code);
     if (/____/.test(code)) { setR(undefined); return; }
     setBusy(true);
     const src = code + (p.postlude ? '\n\n' + p.postlude + '\n' : '');
@@ -291,6 +297,18 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
     setBusy(false);
     setR(res);
     const ok = !res.compileError && !res.timeout && !res.loadError && res.results.length > 0 && res.results.every((t) => t.ok);
+    if (!ok) {
+      // Remember what went wrong, so Today and Stats can train you on it.
+      const kinds = new Set<string>();
+      for (const l of lint(code, p)) { const k = SLIP_KINDS.find((x) => x.re.test(l.msg)); if (k) kinds.add(k.kind); }
+      const c = await checked;
+      for (const st of c.steps ?? []) {
+        if (st.status === 'wrong') (st.cats?.length ? st.cats : ['path']).forEach((x) => kinds.add(`logic:${x === 'off1' ? 'off1' : x}`));
+        if (st.status === 'loop') kinds.add('logic:loop');
+        if (st.status === 'error') kinds.add('logic:error');
+      }
+      for (const k of kinds) logMistake({ source: 'blueprint', kind: k, label: p.title, ref: p.id });
+    }
     if (ok && !passed) {
       setPassed(true);
       const all = getStatus();

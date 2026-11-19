@@ -145,6 +145,7 @@ export interface StepReport {
   written: boolean;
   lines: StepLine[];
   why?: string[];
+  cats?: string[];
   after?: number;
   error?: { msg: string; line?: number };
   loop?: { line?: number };
@@ -161,7 +162,7 @@ export interface StepCheck {
 }
 
 /** Runs your code and the blueprint side by side and reports, step by step, whether your logic makes the same values. */
-export async function checkSteps(payload: { user: string; ref: string; fname: string; call: string; tests: unknown[]; postlude: string; nsteps: number }, timeoutMs = 6000): Promise<StepCheck> {
+export async function checkSteps(payload: { user: string; ref: string; fname: string; call: string; tests: unknown[]; expected: unknown[]; postlude: string; nsteps: number }, timeoutMs = 6000): Promise<StepCheck> {
   try { await warmUp(); } catch (e) { return { loadError: String((e as Error).message) }; }
   const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
   const res = await Promise.race([call({ type: 'steps', payload: JSON.stringify(payload) }), timer]);

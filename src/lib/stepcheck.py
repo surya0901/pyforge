@@ -14,6 +14,11 @@ _STEP_RE = re.compile(r"#\s*Step\s*(\d+)", re.I)
 _CAP = 30000
 
 
+_LAST = [None]  # return value of the last traced call
+_RESULTS = [[]]  # return values of the last _collect, one per test
+_NORESULT = object()
+
+
 class _Cap(Exception):
     pass
 
@@ -150,7 +155,7 @@ def _trace(fn, args, filename):
     old = sys.gettrace()
     sys.settrace(tracer)
     try:
-        fn(*copy.deepcopy(args))
+        _LAST[0] = fn(*copy.deepcopy(args))
     except _Cap:
         capped = True
     except RecursionError:
@@ -264,9 +269,12 @@ def _collect(code, filename, postlude, call, fname, tests):
         raise NameError(f"{fname} is not defined. Keep the function name {fname}.")
     smap, found = _step_map(code)
     by_line, by_var, var_lines = {}, {}, {}
+    results = []
     error = loop = None
     for ti, args in enumerate(tests):
+        _LAST[0] = _NORESULT
         events, err, capped = _trace(fn, args, filename)
+        results.append(_LAST[0])
         for line, produced in events:
             for var, c, k, p in produced:
                 INFO.setdefault(c, (k, p))
@@ -285,6 +293,7 @@ def _collect(code, filename, postlude, call, fname, tests):
                 hot[line] = hot.get(line, 0) + 1
             hl = max(hot, key=hot.get) if hot else None
             loop = {"line": hl, "step": smap.get(hl, 1) if hl else None, "test": ti}
+    _RESULTS[0] = results
     return by_line, by_var, var_lines, error, loop, smap, found
 
 
@@ -416,7 +425,7 @@ def _diagnose(need, user_traj, test, args, prefer):
     return ("path", f"Trace it ({on}): both reach {_clip(INFO[before][1], 50)}, then the blueprint's next value is {_clip(INFO[need[i]][1], 50)} but {tail} (your {var}). That's the exact moment to look at.")
 
 
-def pyforge_steps(payload):
+def _legacy_steps(payload):
     p = json.loads(payload)
     user, ref, fname, call, tests = p["user"], p["ref"], p["fname"], p["call"], p["tests"]
     postlude = p.get("postlude") or ""
@@ -513,4 +522,351 @@ def pyforge_steps(payload):
         out["error"] = err
     if loop:
         out["loop"] = loop
+    return json.dumps(out)
+
+
+# ───────────────────────── Step by step, in context ─────────────────────────
+# A step can only be judged fairly when the steps around it exist. Example: "return True if it's
+# already in the set" can't fire until a LATER step adds to the set. So each step is judged by
+# running YOUR code for that step, the blueprint's code for every step you haven't written (or got
+# wrong), and checking the whole thing against the tests. Blueprint names are renamed to yours.
+
+import ast as _ast2, re as _re2
+
+
+def _norm_out(x):
+    return json.loads(json.dumps(x, default=lambda o: list(o) if isinstance(o, (set, tuple)) else repr(o)))
+
+
+def _split(code):
+    """-> (header lines, {step: (comment line, [body lines])}, order) using the '# Step N' comments."""
+    lines = code.split("\n")
+    header, regions, cur, order = [], {}, None, []
+    for raw in lines:
+        hit = _STEP_RE.search(raw)
+        if hit and raw.strip().startswith("#"):
+            cur = int(hit.group(1))
+            regions[cur] = (raw, [])
+            order.append(cur)
+            continue
+        if cur is None:
+            header.append(raw)
+        else:
+            regions[cur][1].append(raw)
+    return header, regions, order
+
+
+def _code_lines(body):
+    return [l for l in body if l.strip() and not l.strip().startswith("#")]
+
+
+def _defs(code, smap, params):
+    """Names each step creates, in order: assignments, loop variables, helper functions and their arguments."""
+    out = {}
+    try:
+        tree = _ast2.parse(code)
+    except SyntaxError:
+        return out
+    found = []
+    for node in _ast2.walk(tree):
+        names = []
+        if isinstance(node, (_ast2.Assign, _ast2.AugAssign, _ast2.AnnAssign)):
+            tg = node.targets if isinstance(node, _ast2.Assign) else [node.target]
+            for t in tg:
+                names += [n.id for n in _ast2.walk(t) if isinstance(n, _ast2.Name)]
+        elif isinstance(node, (_ast2.For, _ast2.AsyncFor)):
+            names += [n.id for n in _ast2.walk(node.target) if isinstance(n, _ast2.Name)]
+        elif isinstance(node, _ast2.FunctionDef) and node.lineno > 1:
+            names += [node.name] + [a.arg for a in node.args.args]
+        elif isinstance(node, _ast2.Import):
+            names += [(a.asname or a.name).split(".")[0] for a in node.names]
+        elif isinstance(node, _ast2.ImportFrom):
+            names += [a.asname or a.name for a in node.names]
+        for nm in names:
+            found.append((node.lineno, getattr(node, "col_offset", 0), nm))
+    found.sort()
+    seen = set(params)
+    for ln, _, nm in found:
+        if nm in seen or nm == "_" or nm in _SKIP:
+            continue
+        seen.add(nm)
+        out.setdefault(smap.get(ln, 1), []).append(nm)
+    return out
+
+
+def _first_vals(by_var, name):
+    per = by_var.get(name, {})
+    return {t: seq[0] for t, seq in per.items() if seq}
+
+
+def _mapping(r_defs, u_defs, r_var, u_var, u_names=frozenset()):
+    """Blueprint name -> your name, matched step by step by what the variable first holds.
+    A blueprint name you already use anywhere (even only reading it) stays as is."""
+    m, used = {}, set()
+    for names in r_defs.values():
+        for r in names:
+            if r in u_names:
+                m[r] = r
+                used.add(r)
+    all_user = [n for s in sorted(u_defs) for n in u_defs[s]]
+    for s in sorted(r_defs):
+        for i, r in enumerate(r_defs[s]):
+            if r in m:
+                continue
+            if r in all_user and r not in used:
+                m[r] = r
+                used.add(r)
+                continue
+            pool = [u for u in u_defs.get(s, []) if u not in used] or [u for u in all_user if u not in used]
+            if not pool:
+                continue
+            rf = _first_vals(r_var, r)
+            def score(u):
+                uf = _first_vals(u_var, u)
+                same = sum(1 for t, c in rf.items() if uf.get(t) == c)
+                kind = sum(1 for t, c in rf.items() if t in uf and INFO.get(uf[t], ("",))[0] == INFO.get(c, ("",))[0])
+                pos = -abs(u_defs.get(s, all_user).index(u) - i) if u in u_defs.get(s, []) else -9
+                return (same, kind, pos)
+            best = max(pool, key=score)
+            if score(best)[0] or score(best)[1] or best in u_defs.get(s, []):
+                m[r] = best
+                used.add(best)
+    return {k: v for k, v in m.items() if k != v}
+
+
+def _rename(lines, m):
+    if not m:
+        return lines
+    pat = _re2.compile(r"(?<![\w.])(" + "|".join(sorted(map(_re2.escape, m), key=len, reverse=True)) + r")\b")
+    return [pat.sub(lambda g: m[g.group(1)], l) for l in lines]
+
+
+def _compose(u_header, u_reg, r_reg, use_user, m, nsteps):
+    """Your header, then for each step either your lines or the blueprint's (renamed). Returns code and line origins."""
+    lines, origin = [], []
+    for i, l in enumerate(u_header, 1):
+        lines.append(l); origin.append(("u", i, 0))
+    for s in range(1, nsteps + 1):
+        if s in use_user and s in u_reg:
+            cm, body, start = u_reg[s]
+            lines.append(cm); origin.append(("u", start, s))
+            for j, l in enumerate(body, 1):
+                lines.append(l); origin.append(("u", start + j, s))
+        else:
+            cm, body = r_reg[s]
+            lines.append(f"    # Step {s}")
+            origin.append(("r", 0, s))
+            for l in _rename(body, m):
+                lines.append(l); origin.append(("r", 0, s))
+    return "\n".join(lines) + "\n", origin
+
+
+def _run_case(code, postlude, call, fname, tests, expected):
+    """Run one composite. Returns (passed, by_line, by_var, var_lines, error, loop, results) or None if it doesn't compile."""
+    try:
+        compile(code, "solution.py", "exec")
+    except SyntaxError:
+        return None
+    try:
+        by_line, by_var, var_lines, err, loop, _, _ = _collect(code, "solution.py", postlude, call, fname, tests)
+    except Exception as e:  # noqa: BLE001
+        return (False, {}, {}, {}, {"msg": f"{type(e).__name__}: {e}", "line": None}, None, [])
+    results = list(_RESULTS[0])
+    ok = not err and not loop and len(results) == len(expected)
+    if ok:
+        for got, exp in zip(results, expected):
+            if got is _NORESULT or _norm_out(got) != exp:
+                ok = False
+                break
+    return (ok, by_line, by_var, var_lines, err, loop, results)
+
+
+def pyforge_steps(payload):
+    p = json.loads(payload)
+    user, ref, fname, call, tests = p["user"], p["ref"], p["fname"], p["call"], p["tests"]
+    expected = p.get("expected")
+    nsteps = p["nsteps"]
+    postlude = p.get("postlude") or ""
+
+    u_header, u_regions, u_order = _split(user)
+    r_header, r_regions, _ = _split(ref)
+    if expected is None or sorted(u_order) != list(range(1, nsteps + 1)) or len(u_order) != nsteps:
+        # step comments missing (blind pass): judge the whole thing by values
+        run_code = _fill_empty_blocks(user)
+        try:
+            compile(run_code, "solution.py", "exec")
+        except SyntaxError as e:
+            smap, _ = _step_map(user)
+            return json.dumps({"syntax": {"msg": e.msg, "line": e.lineno, "step": smap.get(e.lineno or 0, 1)}})
+        return _legacy_steps(json.dumps(dict(p, user=run_code)))
+
+    u_reg, ln = {}, len(u_header) + 1
+    for s_ in u_order:
+        cm, body = u_regions[s_]
+        u_reg[s_] = (cm, body, ln)
+        ln += 1 + len(body)
+    written = {s_: bool(_code_lines(u_regions[s_][1])) for s_ in range(1, nsteps + 1)}
+
+    def compose(use, m):
+        code, origin = _compose(u_header, u_reg, r_regions, use, m, nsteps)
+        return _fill_empty_blocks(code), origin
+
+    # Your written steps, with the blueprint filling any step you haven't written, so skipping one is fine.
+    base, b_origin = compose({x for x in written if written[x]}, {})
+    try:
+        compile(base, "solution.py", "exec")
+    except SyntaxError as e:
+        line = e.lineno or 1
+        o = b_origin[min(len(b_origin), max(1, line)) - 1]
+        if o[0] != "u":  # error surfaced in blueprint code: blame the closest line of yours above it
+            o = next((b_origin[i] for i in range(min(len(b_origin), line) - 1, -1, -1) if b_origin[i][0] == "u"), ("u", 1, 1))
+        return json.dumps({"syntax": {"msg": e.msg, "line": o[1], "step": o[2] or 1}})
+
+    r_line, r_var, _, _, _, r_map, _ = _collect(ref, "reference.py", postlude, call, fname, tests)
+    params = []
+    m0 = _re2.match(r"\s*def\s+\w+\s*\((.*)\)", r_header[0] if r_header else "")
+    if m0:
+        params = [x.strip().split("=")[0].split(":")[0].strip() for x in m0.group(1).split(",") if x.strip()]
+    try:
+        _, u_var0, _, _, _, b_map, _ = _collect(base, "solution.py", postlude, call, fname, tests)
+    except Exception:  # noqa: BLE001
+        u_var0, b_map = {}, _step_map(base)[0]
+    user_only = {i + 1 for i, o in enumerate(b_origin) if o[0] == "u"}
+    u_defs_all = _defs(base, b_map, params)
+    # keep only names your own lines create
+    try:
+        tree = _ast2.parse(base)
+        mine, used_names = set(), set()
+        for node in _ast2.walk(tree):
+            if isinstance(node, _ast2.Name) and node.lineno in user_only:
+                used_names.add(node.id)
+            if getattr(node, "lineno", None) in user_only:
+                for n in _ast2.walk(node):
+                    if isinstance(n, _ast2.Name) and isinstance(n.ctx, _ast2.Store):
+                        mine.add(n.id)
+                if isinstance(node, _ast2.FunctionDef):
+                    mine.add(node.name)
+                    mine.update(a_.arg for a_ in node.args.args)
+                if isinstance(node, (_ast2.Import, _ast2.ImportFrom)):
+                    mine.update((a_.asname or a_.name).split(".")[0] for a_ in node.names)
+    except SyntaxError:
+        mine, used_names = set(), set()
+    u_defs = {k: [n for n in v if n in mine] for k, v in u_defs_all.items()}
+    r_defs = _defs(ref, r_map, params)
+    mapping = _mapping(r_defs, u_defs, r_var, u_var0, used_names)
+    # A blueprint name left as is must not collide with one of your names that now stands for something else.
+    taken = set(mapping.values())
+    for names in r_defs.values():
+        for r in names:
+            if r not in mapping and r in taken:
+                mapping[r] = r + "_bp"
+
+    ref_lines = {}
+    for i, raw in enumerate(ref.split("\n"), 1):
+        t = raw.strip()
+        if not t or t.startswith("#") or t.startswith("def " + fname):
+            continue
+        ref_lines.setdefault(r_map.get(i, 1), []).append(i)
+
+    good = set()  # steps judged right so far, kept as yours in later checks
+    steps = []
+    for s in range(1, nsteps + 1):
+        st = {"step": s, "written": written[s], "lines": []}
+        if not written[s]:
+            st["status"] = "empty"
+            for li in ref_lines.get(s, []):
+                pers = [per for (l2, _v), per in r_line.items() if l2 == li]
+                first = next((seq for per in pers for seq in per.values() if seq), None)
+                st["lines"].append({"status": "miss", "what": _describe(first[0])} if first else {"status": "flow"})
+            steps.append(st)
+            continue
+        use = good | {s}
+        code_s, origin = compose(use, mapping)
+        case = _run_case(code_s, postlude, call, fname, tests, expected)
+        # If your step also does part of the next one, judge them together.
+        k = s
+        while case is not None and not case[0] and k + 1 <= nsteps and written.get(k + 1):
+            k += 1
+            alt_code, alt_origin = compose(good | {x for x in range(s, k + 1) if written[x]}, mapping)
+            alt = _run_case(alt_code, postlude, call, fname, tests, expected)
+            if alt and alt[0]:
+                case, code_s, origin = alt, alt_code, alt_origin
+                break
+        if case is None:
+            # your step plus the blueprint around it doesn't fit together (indentation etc.): fall back to values
+            leg = json.loads(_legacy_steps(payload))
+            ls = next((x for x in leg.get("steps", []) if x["step"] == s), None)
+            if ls:
+                ls.pop("after", None)
+                st.update(ls)
+            else:
+                st["status"] = "wrong"
+            if st["status"] == "ok":
+                good.add(s)
+            steps.append(st)
+            continue
+
+        ok, c_line, c_var, c_vlines, err, loop, results = case
+        user_lines = {i + 1 for i, o in enumerate(origin) if o[0] == "u"}
+        to_user = {i + 1: o[1] for i, o in enumerate(origin) if o[0] == "u"}
+        traj = {v: t for v, t in c_var.items() if any(l in user_lines for l in c_vlines.get(v, ()))}
+        prefer = {v for v, lns in c_vlines.items() if any(origin[l - 1][0] == "u" and origin[l - 1][2] == s for l in lns if 0 < l <= len(origin))}
+
+        def matched(per):
+            return all(not need or any(_subseq(need, u.get(t, [])) for u in traj.values()) for t, need in per.items())
+
+        fails = []
+        for li in ref_lines.get(s, []):
+            line_vars = [(v, per) for (l2, v), per in r_line.items() if l2 == li]
+            if not line_vars:
+                st["lines"].append({"status": "flow"})
+                continue
+            okl = True
+            for v, per in line_vars:
+                if not matched(per):
+                    okl = False
+                    fails.append(per)
+            first = next(iter(line_vars[0][1].values()))
+            st["lines"].append({"status": "ok" if okl else "miss", "what": _describe(first[0])})
+
+        if ok and not fails:
+            st["status"] = "ok"
+            good.add(s)
+        else:
+            in_step = lambda line: line and 0 < line <= len(origin) and origin[line - 1][0] == "u" and origin[line - 1][2] == s
+            if err and in_step(err.get("line")):
+                st["status"] = "error"
+                st["error"] = {"msg": err["msg"], "line": to_user.get(err["line"])}
+            elif loop and in_step(loop.get("line")):
+                st["status"] = "loop"
+                st["loop"] = {"line": to_user.get(loop["line"])}
+            else:
+                st["status"] = "wrong"
+                reasons, cats = [], set()
+                for per in fails:
+                    for t, need in sorted(per.items()):
+                        if need and not any(_subseq(need, u.get(t, [])) for u in traj.values()):
+                            cat, msg = _diagnose(need, traj, t, tests[t], prefer)
+                            if cat not in cats:
+                                cats.add(cat)
+                                reasons.append(msg)
+                            break
+                    if len(reasons) >= 2:
+                        break
+                if not reasons and err:
+                    nm = _re2.search(r"name '(\w+)' is not defined", err["msg"])
+                    if nm:
+                        reasons.append(f"The next steps need something this step should create: {nm.group(1)} in the blueprint. Check this step makes every variable the plan needs.")
+                    else:
+                        reasons.append(f"With your step {s} in place, running the tests crashes: {err['msg']}.")
+                if not reasons:
+                    for t, (got, exp) in enumerate(zip(results, expected)):
+                        g = None if got is _NORESULT else _norm_out(got)
+                        if g != exp:
+                            reasons.append(f"With your step {s} plugged into the rest of the plan, input {_short_args(tests[t])} gives {_clip(repr(g), 50)} instead of {_clip(repr(exp), 50)}. Trace that input through your lines for this step.")
+                            break
+                st["why"] = reasons
+                st["cats"] = sorted(cats)
+        steps.append(st)
+    out = {"steps": steps, "commented": True}
     return json.dumps(out)

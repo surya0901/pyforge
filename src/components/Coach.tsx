@@ -8,6 +8,7 @@ import { Bar, Button, Card, SectionTitle } from './ui';
 import { CoachPanel } from './AI';
 import DailyChecklist from './DailyChecklist';
 import CompanyTracker from './CompanyTracker';
+import WeakSpots from './WeakSpots';
 import { LESSONS } from '../data/lessons';
 import { patternsSummary } from '../lib/coverage';
 
@@ -55,6 +56,7 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
         </h1>
         <p className="mt-2 max-w-[62ch] text-zinc-400">Everything else in the sidebar is there when you want more. If you only do this list every day, you are preparing the right way.</p>
         <DailyChecklist progress={progress} solved={solved} open={open} onLearn={onLearn} />
+        <div className="mt-4"><WeakSpots progress={progress} open={open} onLearn={onLearn} /></div>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           {plan.map((p, i) => {
             const st = stats.find((x) => x.area === p.area);

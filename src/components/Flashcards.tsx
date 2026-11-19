@@ -1,5 +1,9 @@
-import { Plus, RotateCw, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Mic, MicOff, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { resourcesForCard, videoSearch } from '../data/cardResources';
+import { gradeCard, keyIdeas, type Grade, type Verdict } from '../lib/cardGrade';
+import { logMistake } from '../lib/mistakes';
+import { useSample } from './AI';
 import { COMPANY_NAME } from '../data/meta';
 import { DECKS, FLASHCARDS, type DeckId, type Flashcard } from '../data/flashcards';
 import { getLocal, mastery, setLocal } from '../lib/storage';
@@ -14,12 +18,6 @@ interface Props {
   onResult: (id: string, quality: 0 | 1 | 2 | 3, tags: string[]) => void;
 }
 
-const GRADES: { q: 0 | 1 | 2 | 3; label: string; hint: string }[] = [
-  { q: 0, label: 'Again', hint: 'Blanked' },
-  { q: 1, label: 'Hard', hint: 'Got it slowly' },
-  { q: 2, label: 'Good', hint: 'Got it' },
-  { q: 3, label: 'Easy', hint: 'Instant' },
-];
 
 export default function Flashcards({ progress, company, initialDeck, onResult }: Props) {
   const [tab, setTab] = useState<'cards' | 'stories'>('cards');
@@ -27,7 +25,7 @@ export default function Flashcards({ progress, company, initialDeck, onResult }:
 
   return (
     <div>
-      <PageTitle sub="Flip, answer out loud, then grade yourself honestly. Cards you miss come back sooner.">Flashcards</PageTitle>
+      <PageTitle sub="Type or say your answer in your own words. It gets checked, you see exactly which ideas you missed, and where to learn them. Cards you miss come back sooner.">Flashcards</PageTitle>
       <div className="mb-6 flex gap-1 border-b border-zinc-800">
         {(['cards', 'stories'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -89,75 +87,203 @@ function DeckPicker({ progress, company, onPick }: { progress: Progress; company
   );
 }
 
+type Phase = 'answer' | 'checking' | 'result';
+
+/** Speech to text in the browser (Chrome, Edge, Safari). Final words go to onFinal, live words to onInterim. */
+function useSpeech(onFinal: (t: string) => void) {
+  const Rec = (window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
+    ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition;
+  const rec = useRef<SpeechRec | null>(null);
+  const [on, setOn] = useState(false);
+  const [interim, setInterim] = useState('');
+  const [err, setErr] = useState('');
+  const cb = useRef(onFinal);
+  cb.current = onFinal;
+  const stop = () => { rec.current?.stop(); setOn(false); setInterim(''); };
+  const start = () => {
+    if (!Rec) { setErr('Voice input needs Chrome, Edge or Safari.'); return; }
+    setErr('');
+    const r = new Rec();
+    r.lang = 'en-US'; r.continuous = true; r.interimResults = true;
+    r.onresult = (e: SpeechEvent) => {
+      let live = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) cb.current(res[0].transcript.trim());
+        else live += res[0].transcript;
+      }
+      setInterim(live);
+    };
+    r.onerror = (e: { error: string }) => { setErr(e.error === 'not-allowed' ? 'Microphone permission was blocked. Allow it in the address bar, then try again.' : `Voice input stopped (${e.error}).`); setOn(false); };
+    r.onend = () => { setOn(false); setInterim(''); };
+    rec.current = r;
+    r.start();
+    setOn(true);
+  };
+  useEffect(() => () => rec.current?.stop(), []);
+  return { supported: !!Rec, on, interim, err, start, stop };
+}
+interface SpeechRec { lang: string; continuous: boolean; interimResults: boolean; onresult: (e: SpeechEvent) => void; onerror: (e: { error: string }) => void; onend: () => void; start(): void; stop(): void }
+interface SpeechEvent { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] & { length: number } }
+
+const VERDICT: Record<Verdict, { label: string; cls: string; q: 0 | 1 | 2 }> = {
+  right: { label: 'Right', cls: 'border-emerald-500/40 text-emerald-300', q: 2 },
+  partly: { label: 'Partly right', cls: 'border-amber-500/40 text-amber-300', q: 1 },
+  missed: { label: 'Not yet', cls: 'border-rose-500/40 text-rose-300', q: 0 },
+};
+
 function Session({ deck, company, progress, onResult, onExit }: { deck: DeckId | 'due' | 'all'; company: CompanyId | 'all'; progress: Progress; onResult: Props['onResult']; onExit: () => void }) {
   const queue = useMemo(() => cardsFor(deck, company, progress), [deck, company]); // eslint-disable-line react-hooks/exhaustive-deps
   const [i, setI] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [graded, setGraded] = useState(0);
+  const [answer, setAnswer] = useState('');
+  const [phase, setPhase] = useState<Phase>('answer');
+  const [grade, setGrade] = useState<Grade | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [tally, setTally] = useState({ right: 0, partly: 0, missed: 0 });
+  const [missedCards, setMissedCards] = useState<Flashcard[]>([]);
+  const sample = useSample();
+  const speech = useSpeech((t) => setAnswer((a) => (a ? `${a} ${t}` : t)));
+  const ta = useRef<HTMLTextAreaElement>(null);
   const card = queue[i];
+  useEffect(() => { ta.current?.focus(); }, [i]);
 
-  const grade = (q: 0 | 1 | 2 | 3) => {
-    if (!card || !flipped) return;
-    onResult(card.id, q, q === 0 ? [`card-miss-${card.deck}`] : []);
-    setGraded((g) => g + 1);
-    setFlipped(false);
+  const check = async (skip = false) => {
+    if (!card || phase !== 'answer') return;
+    speech.stop();
+    setPhase('checking');
+    const g = skip ? { verdict: 'missed' as Verdict, score: 0, covered: [], missed: keyIdeas(card.back), feedback: 'No answer this time. Read the answer, then say it back in your own words before moving on.' } : await gradeCard(card, answer, sample);
+    setGrade(g);
+    setVerdict(g.verdict);
+    setPhase('result');
+  };
+
+  const next = () => {
+    if (!card || !verdict) return;
+    onResult(card.id, VERDICT[verdict].q, verdict === 'missed' ? [`card-miss-${card.deck}`] : []);
+    if (verdict !== 'right') logMistake({ source: 'flashcards', kind: `card-${card.deck}`, label: card.front, ref: card.id });
+    setTally((t) => ({ ...t, [verdict]: t[verdict] + 1 }));
+    if (verdict !== 'right') setMissedCards((m) => [...m, card]);
     setI((x) => x + 1);
+    setAnswer(''); setGrade(null); setVerdict(null); setPhase('answer');
   };
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
-      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setFlipped((f) => !f); }
-      const n = Number(e.key);
-      if (flipped && n >= 1 && n <= 4) grade((n - 1) as 0 | 1 | 2 | 3);
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && phase === 'answer') { e.preventDefault(); check(); return; }
+      if ((e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
+      if (e.key === 'Enter' && phase === 'result') { e.preventDefault(); next(); }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   });
 
   if (!card) {
+    const total = tally.right + tally.partly + tally.missed;
     return (
-      <Card className="mx-auto max-w-lg p-8 text-center">
-        <p className="text-xl font-semibold text-zinc-100">{graded ? <span className="hl">Stack finished.</span> : 'Nothing here yet.'}</p>
-        <p className="mt-2 text-zinc-400">{graded ? `You graded ${graded} cards. Come back later for the ones that are due again.` : 'No cards are due right now. Pick a deck to learn new ones.'}</p>
+      <Card className="mx-auto max-w-2xl p-8">
+        <p className="text-xl font-semibold text-zinc-100">{total ? <span className="hl">Stack finished.</span> : 'Nothing here yet.'}</p>
+        {total ? (
+          <>
+            <p className="mt-2 text-zinc-400">{tally.right} right, {tally.partly} partly, {tally.missed} not yet. Cards you missed come back sooner.</p>
+            {missedCards.length > 0 && (
+              <div className="mt-4">
+                <h3 className="mb-2 font-semibold text-zinc-100">Study these before next time</h3>
+                <ul className="space-y-2">
+                  {missedCards.map((c) => (
+                    <li key={c.id} className="rounded-md border border-zinc-800 p-3 text-sm">
+                      <div className="text-zinc-200">{c.front}</div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                        {resourcesForCard(c).slice(0, 2).map((r) => <a key={r.url} href={r.url} target="_blank" rel="noreferrer" className="link text-xs">{r.label}</a>)}
+                        <a href={videoSearch(c)} target="_blank" rel="noreferrer" className="link text-xs">Videos on this</a>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : <p className="mt-2 text-zinc-400">No cards are due right now. Pick a deck to learn new ones.</p>}
         <Button className="mt-5" variant="subtle" onClick={onExit}>Back to decks</Button>
       </Card>
     );
   }
 
   const deckName = DECKS.find((d) => d.id === card.deck)?.name;
+  const v = verdict ? VERDICT[verdict] : null;
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <div className="mb-3 flex items-center justify-between text-sm text-zinc-500">
         <button onClick={onExit} className="hover:text-zinc-200">All decks</button>
-        <span className="tnum">{i + 1} of {queue.length}</span>
+        <span className="tnum">{i + 1} of {queue.length} · {tally.right} right so far</span>
       </div>
-      <div className="[perspective:1600px]">
-        <div className={`flip relative h-[330px] cursor-pointer ${flipped ? 'on' : ''}`} onClick={() => setFlipped((f) => !f)}>
-          <div className="face index-card absolute inset-0 flex flex-col rounded-sm px-8 py-6 pl-[76px]">
-            <div className="text-sm text-violet-300">{deckName}</div>
-            <div className="flex flex-1 items-center">
-              <p className="text-[26px] font-semibold leading-[1.25] text-zinc-100">{card.front}</p>
-            </div>
-            <div className="text-sm text-zinc-500">Say your answer, then flip <Kbd>Space</Kbd></div>
+      <div className="index-card rounded-sm px-8 py-6 pl-[76px]">
+        <div className="text-sm text-violet-300">{deckName}{card.companies ? <span className="text-zinc-500"> · comes up at {card.companies.map((c) => COMPANY_NAME[c]).join(', ')}</span> : null}</div>
+        <p className="mt-3 text-[24px] font-semibold leading-[1.3] text-zinc-100">{card.front}</p>
+      </div>
+
+      {phase !== 'result' ? (
+        <div className="mt-4">
+          <textarea ref={ta} value={answer + (speech.interim ? (answer ? ' ' : '') + speech.interim : '')} onChange={(e) => setAnswer(e.target.value)} rows={5} disabled={phase === 'checking'}
+            placeholder="Type your answer the way you'd say it to an interviewer, or press Speak. Your own words are fine."
+            className="w-full resize-y rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-[15px] leading-relaxed text-zinc-100 outline-none focus:border-violet-500" />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button onClick={() => check()} disabled={phase === 'checking' || !answer.trim()}>{phase === 'checking' ? 'Checking…' : 'Check my answer'}<Kbd>⌘ Enter</Kbd></Button>
+            <Button variant={speech.on ? 'primary' : 'ghost'} onClick={() => (speech.on ? speech.stop() : speech.start())} disabled={phase === 'checking'}>
+              {speech.on ? <><MicOff size={15} />Stop</> : <><Mic size={15} />Speak</>}
+            </Button>
+            {speech.on && <span className="flex items-center gap-1.5 text-sm text-rose-300"><span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" />Listening…</span>}
+            <span className="flex-1" />
+            <button onClick={() => check(true)} className="text-sm text-zinc-500 hover:text-zinc-200">I don't know, show me</button>
           </div>
-          <div className="face back index-card absolute inset-0 flex flex-col overflow-y-auto rounded-sm px-8 py-6 pl-[76px]">
-            <div className="text-sm text-zinc-500">{card.front}</div>
-            <p className="mt-2 text-[17px] leading-[32px] text-zinc-100">{card.back}</p>
-            {card.companies && <p className="mt-auto pt-3 text-sm text-zinc-500">Comes up at {card.companies.map((c) => COMPANY_NAME[c]).join(', ')}</p>}
-          </div>
+          {speech.err && <p className="mt-2 text-sm text-amber-300">{speech.err}</p>}
+          <p className="mt-2 text-xs text-zinc-500">{sample ? 'Claude grades your answer by meaning.' : 'Graded on this device by the key ideas you cover, not exact words. Add an Anthropic API key under Stats to have Claude grade instead.'}</p>
         </div>
-      </div>
-      <div className="mt-5 grid grid-cols-4 gap-2">
-        {GRADES.map((g, k) => (
-          <button key={g.q} disabled={!flipped} onClick={() => grade(g.q)}
-            className={`rounded-md border px-2 py-2 text-left transition-colors disabled:opacity-35 ${g.q === 0 ? 'border-rose-500/40 hover:bg-rose-500/10' : g.q === 3 ? 'border-emerald-500/40 hover:bg-emerald-500/10' : 'border-zinc-800 hover:bg-zinc-800/50'} bg-zinc-900`}>
-            <div className="flex items-center justify-between font-medium text-zinc-100">{g.label}<Kbd>{k + 1}</Kbd></div>
-            <div className="text-xs text-zinc-500">{g.hint}</div>
-          </button>
-        ))}
-      </div>
-      {!flipped && <p className="mt-3 text-center text-sm text-zinc-500"><RotateCw size={13} className="mr-1 inline" />Tap the card to flip it</p>}
+      ) : grade && v && (
+        <div className="mt-4 space-y-3">
+          <Card className={`border p-4 ${v.cls.split(' ')[0]}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className={`text-lg font-semibold ${v.cls.split(' ')[1]}`}>{v.label}</span>
+              <span className="text-xs text-zinc-500">{grade.byAI ? 'Graded by Claude' : 'Auto-check by key ideas'}</span>
+            </div>
+            <p className="mt-1 text-[15px] text-zinc-200">{grade.feedback}</p>
+            {answer && <p className="mt-2 border-l-2 border-zinc-700 pl-3 text-sm text-zinc-400">You said: {answer}</p>}
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="text-zinc-500">Wrong call?</span>
+              {(['right', 'partly', 'missed'] as Verdict[]).filter((x) => x !== verdict).map((x) => (
+                <button key={x} onClick={() => setVerdict(x)} className="rounded-full border border-zinc-700 px-2 py-0.5 text-zinc-300 hover:border-zinc-500">Count it as {VERDICT[x].label.toLowerCase()}</button>
+              ))}
+            </div>
+          </Card>
+          <Card className="p-4">
+            <h4 className="mb-2 text-sm font-semibold text-zinc-100">The answer, idea by idea</h4>
+            <ul className="space-y-1.5 text-[15px]">
+              {keyIdeas(card.back).map((idea, k) => {
+                const got = grade.covered.includes(idea);
+                return (
+                  <li key={k} className="flex gap-2">
+                    <span className={`mt-0.5 w-4 shrink-0 ${got ? 'text-emerald-400' : 'text-zinc-500'}`}>{got ? '✓' : '○'}</span>
+                    <span className={got ? 'text-zinc-400' : 'text-zinc-100'}>{idea}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {grade.byAI && grade.missed.length > 0 && <p className="mt-2 text-sm text-amber-200">Left out: {grade.missed.join('; ')}</p>}
+          </Card>
+          {verdict !== 'right' && (
+            <Card className="p-4">
+              <h4 className="mb-2 text-sm font-semibold text-zinc-100">Get this one solid</h4>
+              <p className="mb-2 text-sm text-zinc-400">Say the full answer out loud once now, in your own words. This card comes back sooner. To go deeper:</p>
+              <ul className="space-y-1.5 text-sm">
+                {resourcesForCard(card).map((r) => (
+                  <li key={r.url}><a href={r.url} target="_blank" rel="noreferrer" className="link">{r.label}</a> <span className="text-zinc-500">· {r.why}</span></li>
+                ))}
+                <li><a href={videoSearch(card)} target="_blank" rel="noreferrer" className="link">YouTube explanations of this question</a></li>
+              </ul>
+            </Card>
+          )}
+          <Button onClick={next}>Next card <Kbd>Enter</Kbd></Button>
+        </div>
+      )}
     </div>
   );
 }

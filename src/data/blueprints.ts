@@ -1977,6 +1977,30 @@ export const BLUEPRINTS: Blueprint[] = [
      3
     ],
     3
+   ],
+   [
+    [
+     1,
+     3,
+     5,
+     7
+    ],
+    8
+   ],
+   [
+    [
+     1,
+     3,
+     5,
+     7
+    ],
+    1
+   ],
+   [
+    [
+     2
+    ],
+    1
    ]
   ],
   "postlude": "",
@@ -1987,7 +2011,10 @@ export const BLUEPRINTS: Blueprint[] = [
    4,
    -1,
    0,
-   1
+   1,
+   -1,
+   0,
+   -1
   ]
  },
  {

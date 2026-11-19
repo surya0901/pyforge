@@ -2,6 +2,8 @@ import { BarChart3, BookOpen, Blocks, Briefcase, Bug, Calculator, ClipboardCheck
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BlueprintBuilder, { WeakIdioms } from './components/BlueprintBuilder';
 import BugHunter from './components/BugHunter';
+import WeakSpots from './components/WeakSpots';
+import { ClaudeKeyCard } from './components/AI';
 import Coach from './components/Coach';
 import Companies from './components/Companies';
 import Dashboard from './components/Dashboard';
@@ -190,7 +192,7 @@ export default function App() {
       case 'blueprint': return <BlueprintBuilder key={session} initial={focus} />;
       case 'roadmap': return <Roadmap progress={progress} solved={solved} unlockAll={unlockAll} setUnlockAll={setUnlockAll} open={open} onLearn={learn} />;
       case 'learn': return <Patterns key={`${lessonSel}-${session}`} progress={progress} solved={solved} initial={lessonSel} onLesson={onLesson} open={open} />;
-      case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><Dashboard progress={progress} solved={solved} go={go} reset={() => setProgress(emptyProgress())} /></>;
+      case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><div className="mb-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]"><WeakSpots progress={progress} open={open} onLearn={learn} limit={12} /><ClaudeKeyCard /></div><Dashboard progress={progress} solved={solved} go={go} reset={() => setProgress(emptyProgress())} /></>;
       case 'companies': return <Companies key={company} progress={progress} solved={solved} initial={company} open={open} onLearn={learn} />;
       case 'design': return <DesignStudio key={company} progress={progress} company={company} onResult={onResult} />;
       case 'cards': return <Flashcards key={`${company}-${deck}-${session}`} progress={progress} company={company} initialDeck={deck} onResult={onResult} />;

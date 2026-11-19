@@ -200,7 +200,7 @@ B('bp-binary-search', 'Binary Search', 'binary-search', 'easy', 'binary-search',
   ('Loop while the range is not empty and look at the middle', 'With an inclusive hi, the condition is lo <= hi. Use // for integer division.', 'while lo <= hi:\n    mid = (lo + hi) ____ 2', 'while lo <= hi:\n    mid = (lo + hi) // 2', ['floor-div']),
   ('Return mid if it matches, otherwise throw away the half that cannot hold the target', 'If nums[mid] is too small, the target is to the right: lo = mid + 1.', '    if nums[mid] == target:\n        return mid\n    elif nums[mid] < target:\n        lo = mid + ____\n    else:\n        hi = mid - 1', '    if nums[mid] == target:\n        return mid\n    elif nums[mid] < target:\n        lo = mid + 1\n    else:\n        hi = mid - 1', []),
   ('If the loop ends, the target is not there', 'Return after the loop.', 'return ____', 'return -1', []),
-], [[[-1, 0, 3, 5, 9, 12], 9], [[-1, 0, 3, 5, 9, 12], 2], [[5], 5], [[1, 3], 3]])
+], [[[-1, 0, 3, 5, 9, 12], 9], [[-1, 0, 3, 5, 9, 12], 2], [[5], 5], [[1, 3], 3], [[1, 3, 5, 7], 8], [[1, 3, 5, 7], 1], [[2], 1]])
 
 B('bp-koko', 'Koko Eating Bananas', 'eating-bananas', 'medium', 'binary-search',
   'Return the slowest integer speed k (bananas per hour, one pile per hour) that finishes all piles within h hours.', 'piles = [3, 6, 7, 11], h = 8 → 4', 'def min_eating_speed(piles, h):', [

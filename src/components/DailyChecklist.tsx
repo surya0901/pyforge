@@ -5,14 +5,18 @@ import { LESSONS } from '../data/lessons';
 import { NEETCODE } from '../data/neetcode';
 import { patternsSummary } from '../lib/coverage';
 import { getLocal, setLocal, today } from '../lib/storage';
-import type { Mode, Progress } from '../types';
+import type { CompanyId, Mode, Progress } from '../types';
 import { Card } from './ui';
+import { DECKS, FLASHCARDS } from '../data/flashcards';
+import { COMPANY_NAME } from '../data/meta';
+import { mistakeLog } from '../lib/mistakes';
+import { mastery } from '../lib/storage';
 import { blueprintLog, nextBlueprint } from './BlueprintBuilder';
 import { finderAnswers, finderSessionNow, finderSessionsDone } from './PatternDrill';
 import { nextProblems } from './StudyPath';
 
 interface FeedJob { id: string; company: string; title: string; location: string; url: string; posted?: string; ageDays?: number; tier: 'target' | 'big' | 'other' }
-interface DayState { manual: Record<string, boolean>; applied: string[]; picks?: string[]; lesson?: string }
+interface DayState { manual: Record<string, boolean>; applied: string[]; picks?: string[]; lesson?: string; deck?: string }
 
 const FEED_URL = /github\.io$/.test(location.hostname)
   ? `${location.origin}/swe-job-tracker/data/apply-feed.json`
@@ -64,6 +68,8 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const lessonDone = lessonChecks === lesson.check.length;
   const bpToday = blueprintLog().filter((h) => h.at >= start.getTime());
   const bpNext = nextBlueprint(lessonId);
+  const deckPick = useMemo(() => pickDeck(progress, state.deck), [state.deck]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!state.deck) save({ ...state, deck: deckPick.id }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const pickProbs = picks.map((s) => NEETCODE.find((p) => p.slug === s)!).filter(Boolean);
   const ncDone = pickProbs.filter((p) => solved.has(p.slug)).length;
 
@@ -78,8 +84,8 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
       action: <button onClick={() => open('pattern')} className="link">{sessionNow && sessionNow.pos > 0 && !finderSessionToday ? 'Continue' : 'Start'}</button>, progress: finderSessionToday ? '1/1 session' : `${sessionNow?.pos ?? 0}/${sessionNow?.len ?? 10}` },
     { id: 'oa', mins: 25, title: 'Mock OA: one timed set', detail: 'The 20 minute debugging section on weekdays, a full 2 problem OA on weekends.', done: oaToday > 0 || state.manual.oa, auto: true,
       action: <button onClick={() => open('oa')} className="link">Open Mock OA</button> },
-    { id: 'cards', mins: 10, title: 'Flashcards: 15 cards', detail: 'Due cards first. Mix in C++ and systems if you are targeting HRT, Citadel or Nvidia.', done: cardsToday >= 15 || state.manual.cards, auto: true,
-      action: <button onClick={() => open('cards')} className="link">Review</button>, progress: `${Math.min(cardsToday, 15)}/15` },
+    { id: 'cards', mins: 12, title: `Flashcards: 15 cards from ${deckPick.name}`, detail: `${deckPick.why} Type or say each answer; it gets checked and shows what to study for anything you miss.`, done: cardsToday >= 15 || state.manual.cards, auto: true,
+      action: <button onClick={() => open('cards', { deck: deckPick.id })} className="link">Start {deckPick.short}</button>, progress: `${Math.min(cardsToday, 15)}/15` },
     { id: 'story', mins: 10, title: 'Behavioral: one STAR story out loud', detail: 'Pick a question on the Companies page, answer it out loud in 2 minutes, then check it.', done: !!state.manual.story, auto: false,
       action: <button onClick={() => open('companies')} className="link">Pick a question</button> },
     { id: 'apply', mins: 100, title: `Submit ${APP_GOAL} quality applications`, detail: 'About 10 minutes each: read the posting, match 2 or 3 of its keywords in your resume bullets, apply, then message one engineer or recruiter there.', done: state.applied.length >= APP_GOAL || state.manual.apply, auto: true,
@@ -201,4 +207,23 @@ function finderCountToday(progress: Progress, since: number) {
   for (const a of all) loggedEver[a.id] = (loggedEver[a.id] ?? 0) + 1;
   const earlier = Object.entries(progress.cards).filter(([id, c]) => PATTERN_IDS.has(id) && c.lastSeen >= since && c.attempts > (loggedEver[id] ?? 0)).length;
   return earlier + loggedToday.length;
+}
+
+/** Today's flashcard deck: due reviews if many are waiting, else the deck your target companies need most. */
+function pickDeck(progress: Progress, locked?: string): { id: string; name: string; short: string; why: string } {
+  const now = Date.now();
+  const due = FLASHCARDS.filter((c) => progress.cards[c.id] && progress.cards[c.id].due <= now).length;
+  if (locked === 'due' || (!locked && due >= 8)) return { id: 'due', name: 'your due reviews', short: 'reviews', why: `${due} cards are due for review.` };
+  const targets = getLocal<CompanyId[]>('pyforge.targets.v1', []);
+  const misses: Record<string, number> = {};
+  for (const m of mistakeLog()) if (m.kind.startsWith('card-') && m.at > now - 14 * 86_400_000) misses[m.kind.slice(5)] = (misses[m.kind.slice(5)] ?? 0) + 1;
+  const scored = DECKS.map((d) => {
+    const cards = FLASHCARDS.filter((c) => c.deck === d.id);
+    const m = cards.reduce((a, c) => a + mastery(progress.cards[c.id]), 0) / cards.length;
+    const rel = targets.length ? targets.filter((t) => d.companies.includes(t)).length / targets.length : d.companies.length / 13;
+    return { d, m, rel, score: rel * 1.2 + (1 - m) + Math.min(1, (misses[d.id] ?? 0) / 5) };
+  }).sort((a, b) => b.score - a.score);
+  const best = locked ? scored.find((x) => x.d.id === locked) ?? scored[0] : scored[0];
+  const who = targets.length ? best.d.companies.filter((c) => targets.includes(c)).map((c) => COMPANY_NAME[c]).slice(0, 3).join(', ') : '';
+  return { id: best.d.id, name: best.d.name, short: best.d.name, why: `${who ? `Asked at ${who}. ` : ''}You're at ${Math.round(best.m * 100)}% on this deck${misses[best.d.id] ? ` and missed ${misses[best.d.id]} recently` : ''}.` };
 }

@@ -2,10 +2,13 @@ import { BookOpen, CheckCircle2, Play, RotateCcw, Timer, XCircle } from 'lucide-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PATTERN_DRILLS } from '../data';
 import { FINDER_BY_ID, FINDER_PATTERNS } from '../data/finder';
+import { ORIGINAL_DRILLS } from '../data/originalProblems';
 import { LESSON_BY_ID } from '../data/lessons';
+import { COMPANY_NAME } from '../data/meta';
 import { shuffle } from '../lib/check';
 import { highlight } from '../lib/highlight';
 import { getLocal, mastery, setLocal, today } from '../lib/storage';
+import { logMistake } from '../lib/mistakes';
 import type { PatternExercise, Progress } from '../types';
 import { Bar, Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
 
@@ -34,7 +37,8 @@ export function finderSessionNow(): { pos: number; len: number } | null {
 export const finderAnswers = () => getLocal<{ at: number; id: string; right: boolean }[]>(ANSWERS, []);
 const TARGETS = [{ s: 0, label: 'No target' }, { s: 60, label: '60 s' }, { s: 90, label: '90 s' }, { s: 120, label: '2 min' }];
 const fmtS = (x: number) => (x >= 60 ? `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}` : `${x.toFixed(0)}s`);
-const BY_ID = Object.fromEntries(PATTERN_DRILLS.map((e) => [e.id, e])) as Record<string, PatternExercise>;
+const BY_ID = Object.fromEntries([...PATTERN_DRILLS, ...ORIGINAL_DRILLS].map((e) => [e.id, e])) as Record<string, PatternExercise>;
+const ORIGINALS_PER_SESSION = 3;
 
 interface LogItem { id: string; title: string; secs: number; right: boolean; pick: string | null; retry?: boolean }
 interface Saved {
@@ -61,6 +65,12 @@ export function finderStats(progress: Progress) {
     if (c?.attempts) { s.seen++; s.tries += c.attempts; s.right += c.correct; }
     s.mastery += mastery(c);
   }
+  // original problems count toward your accuracy on each pattern
+  for (const e of ORIGINAL_DRILLS) {
+    const c = progress.cards[e.id];
+    const s = by[e.answer];
+    if (s && c?.attempts) { s.tries += c.attempts; s.right += c.correct; }
+  }
   const rows = Object.entries(by).map(([id, s]) => ({ id, name: FINDER_BY_ID[id]?.name ?? id, ...s, mastery: s.mastery / s.total, acc: s.tries ? s.right / s.tries : 0 }));
   const seen = rows.reduce((a, r) => a + r.seen, 0);
   const tries = rows.reduce((a, r) => a + r.tries, 0);
@@ -78,13 +88,32 @@ function buildSession(queue: PatternExercise[], progress: Progress): string[] {
   const rest = queue.filter((e) => !due.includes(e) && !missedLast.includes(e))
     .map((e) => ({ e, w: (weak.get(e.answer) ?? 0.5) + (progress.cards[e.id] ? 0.3 : 0) + Math.random() * 0.25 }))
     .sort((a, b) => a.w - b.w).map((x) => x.e);
-  const ids = [...new Set([...missedLast, ...due, ...rest].map((e) => e.id))].slice(0, SESSION);
-  // Fewer than 10 unlocked: fill the session with a second look at the ones you know least, so a session is always 10.
+  const realLen = SESSION - ORIGINALS_PER_SESSION;
+  const ids = [...new Set([...missedLast, ...due, ...rest].map((e) => e.id))].slice(0, realLen);
+  // Fewer unlocked than that: a second look at the ones you know least.
   const weakest = [...ids].sort((a, b) => mastery(progress.cards[a]) - mastery(progress.cards[b]));
-  for (let i = 0; ids.length < SESSION && weakest.length; i++) {
+  for (let i = 0; ids.length < realLen && weakest.length; i++) {
     const id = weakest[i % weakest.length];
     if (ids[ids.length - 1] !== id || weakest.length === 1) ids.push(id);
   }
+  // The last three are original problems in the style of big company loops, on patterns you've unlocked.
+  const open = new Set(queue.map((e) => e.answer));
+  const score = (e: PatternExercise) => {
+    const c = progress.cards[e.id];
+    return (c ? (c.lastResult === false ? 0.2 : c.due <= now ? 0.5 : 1 + mastery(c)) : 0.3) + (weak.get(e.answer) ?? 0.5) * 0.5 + Math.random() * 0.3;
+  };
+  let pool = ORIGINAL_DRILLS.filter((e) => open.has(e.answer));
+  if (pool.length < ORIGINALS_PER_SESSION) pool = [...pool, ...ORIGINAL_DRILLS.filter((e) => !open.has(e.answer) && e.difficulty === 'easy')];
+  const picked: string[] = [];
+  const answersUsed = new Set<string>();
+  for (const e of [...pool].sort((a, b) => score(a) - score(b))) {
+    if (picked.length >= ORIGINALS_PER_SESSION) break;
+    if (answersUsed.has(e.answer) && pool.filter((x) => !answersUsed.has(x.answer)).length) continue; // mix patterns when possible
+    picked.push(e.id);
+    answersUsed.add(e.answer);
+  }
+  for (const e of pool) { if (picked.length >= ORIGINALS_PER_SESSION) break; if (!picked.includes(e.id)) picked.push(e.id); }
+  ids.push(...picked);
   return ids;
 }
 
@@ -151,12 +180,13 @@ export default function PatternDrill({ queue, progress, filterId, onResult, onLe
       setLocal(bkey, logged.size ? null : before);
     }
     setLocal(ANSWERS, [...finderAnswers().slice(-499), { at: Date.now(), id: ex.id, right }]);
+    if (!right) logMistake({ source: 'finder', kind: `pattern:${ex.answer}`, label: `${ex.title}: picked ${p ? FINDER_BY_ID[p]?.name ?? p : 'nothing'}`, ref: ex.id });
     setS((x) => {
       let ids = x.ids, retries = x.retries;
       if (!right) {
         // Missed it: a different problem with the same pattern comes back in 3 questions, and this one again at the end.
         const later = new Set(ids.slice(x.pos + 1));
-        const sibling = shuffle(queue.filter((q) => q.answer === ex.answer && q.id !== ex.id && !ids.includes(q.id)))[0];
+        const sibling = shuffle([...queue, ...ORIGINAL_DRILLS].filter((q) => q.answer === ex.answer && q.id !== ex.id && !ids.includes(q.id)))[0];
         ids = [...ids];
         if (sibling) { ids.splice(Math.min(ids.length, x.pos + 4), 0, sibling.id); retries = [...retries, sibling.id]; }
         if (!later.has(ex.id)) { ids.push(ex.id); retries = [...retries, ex.id]; }
@@ -295,7 +325,7 @@ export default function PatternDrill({ queue, progress, filterId, onResult, onLe
       <Card className="p-6">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <DiffTag d={ex.difficulty} />
-          <CompanyTags ids={ex.companies} />
+          {ex.id.startsWith('orig-') ? <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-xs text-violet-200">Original problem · in the style of {ex.companies.map((c) => COMPANY_NAME[c]).join(', ')}</span> : <CompanyTags ids={ex.companies} />}
           <span className={`tnum ml-auto font-mono text-sm ${target && secs > target ? 'text-rose-300' : 'text-zinc-300'}`}>{fmtS(secs)}{target ? ` / ${fmtS(target)}` : ''}</span>
         </div>
         <h3 className="text-xl font-semibold text-zinc-100">{ex.title}</h3>

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { COMPANY_NAME } from '../data/meta';
 import { NC_SECTIONS, NEETCODE } from '../data/neetcode';
 import { areaStats } from '../lib/coach';
-import { getSample, type SampleFn } from '../lib/cloud';
+import { API_KEY, getSample, type SampleFn } from '../lib/cloud';
 import type { CompanyId, Progress } from '../types';
 import { Button, Card } from './ui';
 
@@ -194,5 +194,30 @@ function LocalGrade({ question, answer, setAnswer }: { question: string; answer:
         </div>
       )}
     </div>
+  );
+}
+
+/** Optional: lets the website use Claude for grading and coaching with your own Anthropic API key. */
+export function ClaudeKeyCard() {
+  const [key, setKey] = useState(() => { try { return localStorage.getItem(API_KEY) ?? ''; } catch { return ''; } });
+  const [draft, setDraft] = useState('');
+  const [msg, setMsg] = useState('');
+  const save = () => { try { localStorage.setItem(API_KEY, draft.trim()); setKey(draft.trim()); setDraft(''); setMsg('Saved. Reload the page to switch grading to Claude.'); } catch { setMsg('This browser blocked saving it.'); } };
+  const remove = () => { try { localStorage.removeItem(API_KEY); } catch { /* ignore */ } setKey(''); setMsg('Removed.'); };
+  return (
+    <Card className="p-5">
+      <h3 className="flex items-center gap-2 font-semibold text-zinc-100"><Sparkles size={16} className="text-amber-400" />Claude grading (optional)</h3>
+      <p className="mt-1 text-sm text-zinc-400">On the website, flashcards and coaching are checked on your device by key ideas. Add your own Anthropic API key and Claude grades instead, by meaning, and explains what to fix. The key stays in this browser and is only sent to api.anthropic.com. Each graded card costs a fraction of a cent.</p>
+      {key ? (
+        <div className="mt-3 flex items-center gap-3 text-sm"><span className="text-emerald-300">Key saved (…{key.slice(-4)})</span><Button variant="ghost" onClick={remove}>Remove</Button></div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input type="password" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="sk-ant-…" className="min-w-[240px] flex-1 rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-violet-500" />
+          <Button onClick={save} disabled={!draft.trim().startsWith('sk-')}>Save key</Button>
+        </div>
+      )}
+      {msg && <p className="mt-2 text-xs text-zinc-500">{msg}</p>}
+      <p className="mt-2 text-xs text-zinc-500">Get a key at console.anthropic.com. You don't need one on the claude.ai copy of pyforge, where Claude is built in.</p>
+    </Card>
   );
 }
