@@ -6,6 +6,7 @@ import { averageMastery, mastery, streak } from '../lib/storage';
 import type { CompanyId, Mode, PatternId, Progress } from '../types';
 import { Bar, Button, Card } from './ui';
 import { WeakIdioms } from './BlueprintBuilder';
+import { allPrep } from '../lib/prep';
 
 const MISTAKE_LABEL: Record<string, string> = {
   'bool-case': 'true/false instead of True/False',
@@ -47,11 +48,13 @@ const MISTAKE_LABEL: Record<string, string> = {
 
 interface Props {
   progress: Progress;
+  solved: Set<string>;
   go: (m: Mode, pattern?: PatternId | 'all', company?: CompanyId | 'all') => void;
   reset: () => void;
 }
 
-export default function Dashboard({ progress, go, reset }: Props) {
+export default function Dashboard({ progress, solved, go, reset }: Props) {
+  const prep = allPrep(progress, solved);
   const cards = progress.cards;
   const attempted = Object.values(cards);
   const mastered = ALL.filter((e) => mastery(cards[e.id]) >= 0.8).length;
@@ -126,16 +129,15 @@ export default function Dashboard({ progress, go, reset }: Props) {
           <h3 className="mb-4 text-sm font-semibold text-zinc-100">Company readiness</h3>
           <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             {COMPANIES.map((c) => {
-              const items = ALL.filter((e) => e.companies.includes(c.id));
-              const m = averageMastery(items, progress);
+              const m = prep[c.id].overall;
               return (
-                <button key={c.id} onClick={() => go('syntax', 'all', c.id)} className="group text-left">
+                <button key={c.id} onClick={() => go('companies', 'all', c.id)} className="group text-left">
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="text-zinc-300 group-hover:text-white">
                       {c.name}
                       <span className={`ml-2 rounded px-1 text-[10px] ${c.tier === 'quant' ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>{c.tier === 'quant' ? 'QUANT' : c.tier === 'bank' ? 'BANK' : 'BIG TECH'}</span>
                     </span>
-                    <span className="font-mono text-xs text-zinc-400">{Math.round(m * 100)}% · {items.length}</span>
+                    <span className="font-mono text-xs text-zinc-400">{Math.round(m * 100)}%</span>
                   </div>
                   <Bar value={m} color={c.tier === 'quant' ? 'bg-amber-500' : 'bg-sky-500'} />
                 </button>

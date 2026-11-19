@@ -1,20 +1,20 @@
 import { Clock, Copy, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { PLAYBOOKS } from '../data/companies';
 import { COMPANIES, COMPANY_NAME } from '../data/meta';
-import { areaStats, buildPlan, claudePrompt, readiness } from '../lib/coach';
+import { areaStats, buildPlan, claudePrompt } from '../lib/coach';
 import { getLocal, setLocal, streak } from '../lib/storage';
-import type { CompanyId, Mode, Progress } from '../types';
+import type { CompanyId, Mode, PatternId, Progress } from '../types';
 import { Bar, Button, Card, SectionTitle } from './ui';
 import { CoachPanel } from './AI';
 import DailyChecklist from './DailyChecklist';
+import CompanyTracker from './CompanyTracker';
 import { LESSONS } from '../data/lessons';
 import { patternsSummary } from '../lib/coverage';
 
 interface Props {
   progress: Progress;
   solved: Set<string>;
-  open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all'; focus?: string }) => void;
+  open: (m: Mode, opts?: { deck?: string; company?: CompanyId | 'all'; focus?: string; pattern?: PatternId | 'all' }) => void;
   onLearn: (lessonId?: string) => void;
 }
 
@@ -34,8 +34,6 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
 
   const stats = useMemo(() => areaStats(progress), [progress]);
   const { plan, strengths, gaps, dueCards } = useMemo(() => buildPlan(progress, targets), [progress, targets]);
-  const shown = targets.length ? targets : PLAYBOOKS.map((p) => p.id);
-  const ranked = shown.map((id) => ({ id, ...readiness(id, stats) })).sort((a, b) => b.score - a.score);
   const days = streak(progress.days);
   const anyPractice = Object.keys(progress.cards).length > 0 || progress.math.length > 0;
 
@@ -96,6 +94,7 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
             );
           })}
         </div>
+        <div className="mt-4"><CompanyTracker progress={progress} solved={solved} targets={targets} open={open} onLearn={onLearn} /></div>
       </section>
 
       <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -125,26 +124,6 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
         </section>
 
         <div className="space-y-8">
-          {/* Readiness */}
-          <section>
-            <SectionTitle>Company readiness</SectionTitle>
-            <div className="space-y-3">
-              {ranked.map((r) => {
-                const weakest = [...r.parts].sort((a, b) => b.weight * (1 - b.mastery) - a.weight * (1 - a.mastery))[0];
-                return (
-                  <button key={r.id} onClick={() => open('companies', { company: r.id })} className="block w-full text-left">
-                    <div className="mb-1 flex items-baseline justify-between">
-                      <span className="font-medium text-zinc-100">{COMPANY_NAME[r.id]}</span>
-                      <span className="tnum text-sm text-zinc-400">{Math.round(r.score * 100)}%</span>
-                    </div>
-                    <Bar value={r.score} />
-                    <div className="mt-1 text-xs text-zinc-500">Biggest lever: {weakest && stats.find((s) => s.area === weakest.area)?.name.toLowerCase()}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
           <section><CoachPanel progress={progress} solved={solved} targets={targets} /></section>
 
           {/* Deeper AI review */}

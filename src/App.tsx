@@ -190,7 +190,7 @@ export default function App() {
       case 'blueprint': return <BlueprintBuilder key={session} initial={focus} />;
       case 'roadmap': return <Roadmap progress={progress} solved={solved} unlockAll={unlockAll} setUnlockAll={setUnlockAll} open={open} onLearn={learn} />;
       case 'learn': return <Patterns key={`${lessonSel}-${session}`} progress={progress} solved={solved} initial={lessonSel} onLesson={onLesson} open={open} />;
-      case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><Dashboard progress={progress} go={go} reset={() => setProgress(emptyProgress())} /></>;
+      case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><Dashboard progress={progress} solved={solved} go={go} reset={() => setProgress(emptyProgress())} /></>;
       case 'companies': return <Companies key={company} progress={progress} solved={solved} initial={company} open={open} onLearn={learn} />;
       case 'design': return <DesignStudio key={company} progress={progress} company={company} onResult={onResult} />;
       case 'cards': return <Flashcards key={`${company}-${deck}-${session}`} progress={progress} company={company} initialDeck={deck} onResult={onResult} />;
@@ -220,7 +220,7 @@ export default function App() {
             )
               : mode === 'syntax' ? <><SyntaxDrill key={filterKey} queue={queues.syntax} onResult={onResult} /><div className="mt-8 max-w-xl"><WeakIdioms compact /></div></>
               : mode === 'bug' ? <BugHunter key={filterKey} queue={queues.bug} onResult={onResult} />
-              : <PatternDrill key={filterKey} queue={queues.pattern} onResult={onResult} onLearn={learn} />}
+              : <PatternDrill key={filterKey} queue={queues.pattern} progress={progress} filterId={`${pattern}|${company}`} onResult={onResult} onLearn={learn} />}
           </>
         );
       }

@@ -2,6 +2,7 @@ import { CheckCircle2, ChevronDown, Circle, ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AREA_NAME, PLAYBOOKS, RESOURCES } from '../data/companies';
 import { BANKS, GENERAL_BEHAVIORAL } from '../data/companyBank';
+import { allPrep } from '../lib/prep';
 import { NEETCODE } from '../data/neetcode';
 import { BehavioralPractice } from './AI';
 import { COMPANIES, COMPANY_NAME } from '../data/meta';
@@ -30,7 +31,8 @@ export default function Companies({ progress, solved, initial, open, onLearn }: 
   const ncBySlug = Object.fromEntries(NEETCODE.map((p) => [p.slug, p]));
   const codingDone = bank.coding.filter((q) => q.nc && solved.has(q.nc)).length;
   const cov = companyCoverage(id, progress, solved, r.score);
-  const allCov = useMemo(() => Object.fromEntries(COMPANIES.map((c) => [c.id, companyCoverage(c.id, progress, solved, readiness(c.id, stats).score).overall])), [progress, solved, stats]);
+  const prep = useMemo(() => allPrep(progress, solved), [progress, solved]);
+  const allCov = Object.fromEntries(COMPANIES.map((c) => [c.id, prep[c.id].overall]));
   // Problems that several companies ask come first: one solve counts for all of them.
   const coding = useMemo(() => bank.coding.map((q) => ({ q, shared: sharedWith(q, id) })).sort((a, b) => b.shared.length - a.shared.length), [bank, id]);
 
@@ -169,9 +171,18 @@ export default function Companies({ progress, solved, initial, open, onLearn }: 
           <Card className="p-5">
             <div className="flex items-baseline justify-between">
               <h3 className="text-lg font-semibold text-zinc-100">What you've covered</h3>
-              <span className="tnum text-3xl font-bold text-zinc-100"><span className="hl">{Math.round(cov.overall * 100)}%</span></span>
+              <span className="tnum text-3xl font-bold text-zinc-100"><span className="hl">{Math.round(prep[id].overall * 100)}%</span></span>
             </div>
-            <p className="mb-4 mt-1 text-sm text-zinc-500">Their reported problems solved, the patterns those problems use, and your drill readiness.</p>
+            <p className="mt-1 text-sm text-zinc-500">{prep[id].level}. The same number as on Today.</p>
+            <div className="mb-4 mt-3 space-y-2 rounded-md bg-zinc-950 p-3">
+              {prep[id].parts.map((x) => (
+                <div key={x.key} className="grid grid-cols-[1fr_70px] items-center gap-3 text-sm">
+                  <div><div className="text-zinc-200">{x.label}</div><div className="text-xs text-zinc-500">{x.detail}</div></div>
+                  <div><Bar value={x.value} /><div className="tnum text-right text-xs text-zinc-400">{Math.round(x.value * 100)}%</div></div>
+                </div>
+              ))}
+              <div className="pt-1 text-xs text-zinc-400">Biggest lever right now: <span className="text-zinc-200">{prep[id].next.action.toLowerCase()}</span></div>
+            </div>
             <div className="mb-1 flex justify-between text-sm"><span className="text-zinc-200">Reported problems solved</span><span className="tnum text-zinc-500">{cov.coding.done}/{cov.coding.total}</span></div>
             <Bar value={cov.coding.total ? cov.coding.done / cov.coding.total : 0} color="bg-amber-500" />
             <h4 className="mb-2 mt-4 text-sm font-medium text-zinc-200">Patterns {COMPANY_NAME[id]} uses</h4>

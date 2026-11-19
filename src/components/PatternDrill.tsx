@@ -1,73 +1,154 @@
-import { BookOpen, CheckCircle2, Play, Timer, XCircle } from 'lucide-react';
+import { BookOpen, CheckCircle2, Play, RotateCcw, Timer, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { PATTERN_DRILLS } from '../data';
 import { FINDER_BY_ID, FINDER_PATTERNS } from '../data/finder';
 import { LESSON_BY_ID } from '../data/lessons';
 import { shuffle } from '../lib/check';
 import { highlight } from '../lib/highlight';
-import type { PatternExercise } from '../types';
-import { Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
+import { getLocal, mastery, setLocal } from '../lib/storage';
+import type { PatternExercise, Progress } from '../types';
+import { Bar, Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
 
 interface Props {
   queue: PatternExercise[];
+  progress: Progress;
+  filterId: string; // pattern|company the session was built for
   onResult: (id: string, quality: 0 | 1 | 2 | 3, tags: string[]) => void;
   onLearn?: (lessonId: string) => void;
 }
 
 const SESSION = 10;
+const SAVE_PREFIX = 'pyforge.finder.session.v2.';
 const TARGETS = [{ s: 0, label: 'No target' }, { s: 60, label: '60 s' }, { s: 90, label: '90 s' }, { s: 120, label: '2 min' }];
 const fmtS = (x: number) => (x >= 60 ? `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}` : `${x.toFixed(0)}s`);
+const BY_ID = Object.fromEntries(PATTERN_DRILLS.map((e) => [e.id, e])) as Record<string, PatternExercise>;
 
-export default function PatternDrill({ queue, onResult, onLearn }: Props) {
-  const [idx, setIdx] = useState(0);
-  const [running, setRunning] = useState(false);
+interface LogItem { id: string; title: string; secs: number; right: boolean; pick: string | null; retry?: boolean }
+interface Saved {
+  filterId: string;
+  ids: string[]; // the session's questions in order (wrong answers add retries)
+  retries: string[]; // ids added because you missed their pattern
+  pos: number;
+  options: Record<string, string[]>;
+  log: LogItem[];
+  pick: string | null; // answer for the question at pos, if already given
+  elapsed: number; // seconds spent on the question at pos so far
+  running: boolean;
+  summary: boolean;
+  savedAt: number;
+}
+
+/** How you're doing on each pattern across every pattern finder answer you've ever given. */
+export function finderStats(progress: Progress) {
+  const by: Record<string, { seen: number; total: number; tries: number; right: number; mastery: number }> = {};
+  for (const e of PATTERN_DRILLS) {
+    const s = (by[e.answer] ??= { seen: 0, total: 0, tries: 0, right: 0, mastery: 0 });
+    const c = progress.cards[e.id];
+    s.total++;
+    if (c?.attempts) { s.seen++; s.tries += c.attempts; s.right += c.correct; }
+    s.mastery += mastery(c);
+  }
+  const rows = Object.entries(by).map(([id, s]) => ({ id, name: FINDER_BY_ID[id]?.name ?? id, ...s, mastery: s.mastery / s.total, acc: s.tries ? s.right / s.tries : 0 }));
+  const seen = rows.reduce((a, r) => a + r.seen, 0);
+  const tries = rows.reduce((a, r) => a + r.tries, 0);
+  const right = rows.reduce((a, r) => a + r.right, 0);
+  return { rows, seen, total: PATTERN_DRILLS.length, acc: tries ? right / tries : 0, tries };
+}
+
+/** Builds a session: reviews that are due, then problems from your weakest patterns, then new ones. */
+function buildSession(queue: PatternExercise[], progress: Progress): string[] {
+  const st = finderStats(progress);
+  const weak = new Map(st.rows.map((r) => [r.id, r.tries ? r.acc : 0.5]));
+  const now = Date.now();
+  const due = queue.filter((e) => progress.cards[e.id] && progress.cards[e.id].due <= now);
+  const missedLast = queue.filter((e) => progress.cards[e.id]?.lastResult === false && !due.includes(e));
+  const rest = queue.filter((e) => !due.includes(e) && !missedLast.includes(e))
+    .map((e) => ({ e, w: (weak.get(e.answer) ?? 0.5) + (progress.cards[e.id] ? 0.3 : 0) + Math.random() * 0.25 }))
+    .sort((a, b) => a.w - b.w).map((x) => x.e);
+  const order = [...missedLast, ...due, ...rest];
+  return [...new Set(order.map((e) => e.id))].slice(0, Math.min(SESSION, order.length));
+}
+
+function makeOptions(ex: PatternExercise) {
+  const conf = ex.confusers.filter((c) => c !== ex.answer && FINDER_BY_ID[c]).slice(0, 3);
+  const fill = shuffle(FINDER_PATTERNS.map((p) => p.id).filter((id) => id !== ex.answer && !conf.includes(id))).slice(0, 3 - conf.length);
+  return shuffle([ex.answer, ...conf, ...fill]);
+}
+
+function fresh(filterId: string, queue: PatternExercise[], progress: Progress, running = false): Saved {
+  return { filterId, ids: buildSession(queue, progress), retries: [], pos: 0, options: {}, log: [], pick: null, elapsed: 0, running, summary: false, savedAt: Date.now() };
+}
+
+export default function PatternDrill({ queue, progress, filterId, onResult, onLearn }: Props) {
+  // Picks up exactly where you left off, even after opening a lesson or another page.
+  const [s, setS] = useState<Saved>(() => {
+    const old = getLocal<Saved | null>(SAVE_PREFIX + filterId, null);
+    if (old && old.filterId === filterId && old.ids.every((id) => BY_ID[id]) && old.pos < old.ids.length) return old.summary || old.pick !== null ? old : { ...old, running: false };
+    return fresh(filterId, queue, progress);
+  });
   const [target, setTarget] = useState(() => Number(localStorage.getItem('pyforge.finderTarget') ?? 90));
-  const [log, setLog] = useState<{ id: string; title: string; secs: number; right: boolean }[]>([]);
-  const [summary, setSummary] = useState(false);
-  const ex = queue[idx % Math.max(queue.length, 1)];
-  const [pick, setPick] = useState<string | null>(null);
-  const [secs, setSecs] = useState(0);
-  const [score, setScore] = useState({ right: 0, total: 0 });
-  const start = useRef(0);
+  const [secs, setSecs] = useState(s.elapsed);
+  const start = useRef(Date.now() - s.elapsed * 1000);
+  const ex = BY_ID[s.ids[s.pos]];
+  const pick = s.pick;
   const done = pick !== null;
+  const { running, summary, log } = s;
 
-  const options = useMemo(() => {
-    if (!ex) return [];
-    const conf = ex.confusers.filter((c) => c !== ex.answer && FINDER_BY_ID[c]).slice(0, 3);
-    const fill = shuffle(FINDER_PATTERNS.map((p) => p.id).filter((id) => id !== ex.answer && !conf.includes(id))).slice(0, 3 - conf.length);
-    return shuffle([ex.answer, ...conf, ...fill]);
-  }, [ex, idx]); // eslint-disable-line react-hooks/exhaustive-deps
+  const options = useMemo(() => (ex ? s.options[ex.id] ?? makeOptions(ex) : []), [ex, s.options]);
+  useEffect(() => { if (ex && !s.options[ex.id]) setS((x) => ({ ...x, options: { ...x.options, [ex.id]: options } })); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { setPick(null); setSecs(0); start.current = Date.now(); }, [idx, running]);
+  // Save on every change, and save the stopwatch when you leave.
+  useEffect(() => { setLocal(SAVE_PREFIX + filterId, { ...s, savedAt: Date.now() }); }, [s]);
+  useEffect(() => () => {
+    const cur = getLocal<Saved | null>(SAVE_PREFIX + filterId, null);
+    if (cur && cur.pick === null && cur.running) setLocal(SAVE_PREFIX + filterId, { ...cur, elapsed: (Date.now() - start.current) / 1000 });
+  }, []);
 
   // A stopwatch, not a countdown: you are never cut off, but the session report tells you if you were on pace.
   useEffect(() => {
     if (!running || done || summary) return;
     const t = setInterval(() => setSecs((Date.now() - start.current) / 1000), 250);
     return () => clearInterval(t);
-  }, [running, done, summary, idx]);
+  }, [running, done, summary, s.pos]);
+
+  const goTo = (patch: Partial<Saved>) => {
+    start.current = Date.now();
+    setSecs(0);
+    setS((x) => ({ ...x, ...patch, pick: null, elapsed: 0 }));
+  };
 
   const finish = (p: string | null) => {
     if (done || !ex) return;
-    setPick(p);
     const right = p === ex.answer;
     const took = (Date.now() - start.current) / 1000;
     setSecs(took);
     onResult(ex.id, right ? (target && took <= target / 2 ? 3 : 2) : 0, right ? [] : ['pattern-miss']);
-    setScore((s) => ({ right: s.right + (right ? 1 : 0), total: s.total + 1 }));
-    setLog((l) => [...l, { id: ex.id, title: ex.title, secs: took, right }]);
+    setS((x) => {
+      let ids = x.ids, retries = x.retries;
+      if (!right) {
+        // Missed it: a different problem with the same pattern comes back in 3 questions, and this one again at the end.
+        const later = new Set(ids.slice(x.pos + 1));
+        const sibling = shuffle(queue.filter((q) => q.answer === ex.answer && q.id !== ex.id && !ids.includes(q.id)))[0];
+        ids = [...ids];
+        if (sibling) { ids.splice(Math.min(ids.length, x.pos + 4), 0, sibling.id); retries = [...retries, sibling.id]; }
+        if (!later.has(ex.id)) { ids.push(ex.id); retries = [...retries, ex.id]; }
+      }
+      return { ...x, ids, retries, pick: p, elapsed: took, log: [...x.log, { id: ex.id, title: ex.title, secs: took, right, pick: p, retry: x.retries.includes(ex.id) }] };
+    });
   };
 
-  const sessionLen = Math.max(1, Math.min(SESSION, queue.length));
   const next = () => {
-    if (log.length && log.length % sessionLen === 0 && !summary) { setSummary(true); return; }
-    setIdx((i) => i + 1);
+    if (s.pos + 1 >= s.ids.length) { setS((x) => ({ ...x, summary: true })); return; }
+    goTo({ pos: s.pos + 1 });
   };
+  const newSession = () => { const f = fresh(filterId, queue, progress, true); start.current = Date.now(); setSecs(0); setS(f); };
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (summary) { if (e.key === 'Enter') { e.preventDefault(); setSummary(false); setIdx((i) => i + 1); } return; }
-      if (!running) { if (e.key === 'Enter') { e.preventDefault(); setRunning(true); } return; }
+      if (summary) { if (e.key === 'Enter') { e.preventDefault(); newSession(); } return; }
+      if (!running) { if (e.key === 'Enter') { e.preventDefault(); start.current = Date.now() - s.elapsed * 1000; setS((x) => ({ ...x, running: true })); } return; }
       if (done) { if (e.key === 'Enter') { e.preventDefault(); next(); } return; }
       const n = Number(e.key);
       if (n >= 1 && n <= options.length) finish(options[n - 1]);
@@ -76,20 +157,22 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
     return () => window.removeEventListener('keydown', h);
   });
 
-  if (!ex) return null;
+  const stats = finderStats(progress);
 
   if (summary) {
-    const batch = log.slice(-sessionLen);
+    const batch = log;
     const right = batch.filter((x) => x.right).length;
-    const avg = batch.reduce((a, x) => a + x.secs, 0) / batch.length;
+    const avg = batch.reduce((a, x) => a + x.secs, 0) / Math.max(1, batch.length);
     const onPace = target ? batch.filter((x) => x.secs <= target).length : batch.length;
     const slow = [...batch].sort((a, b) => b.secs - a.secs).filter((x) => target && x.secs > target);
+    const fixed = batch.filter((x) => x.retry && x.right).length;
     const verdict = right / batch.length >= 0.8 && (!target || onPace / batch.length >= 0.8)
       ? 'Interview ready on these. Try a tighter target next.'
       : right / batch.length < 0.6 ? 'Accuracy first: reread the lessons for the ones you missed before worrying about speed.'
       : 'Getting there. Speed comes from spotting the clue words, so reread the clue for your slowest ones.';
     return (
-      <Card className="mx-auto max-w-2xl p-7">
+      <div className="mx-auto max-w-2xl space-y-5">
+      <Card className="p-7">
         <h2 className="text-2xl font-bold text-zinc-100">Session report</h2>
         <p className="mt-1 text-zinc-400">{verdict}</p>
         <div className="mt-5 grid grid-cols-3 gap-3 text-center">
@@ -97,33 +180,40 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
           <div className="rounded-lg bg-zinc-950 p-3"><div className="tnum text-2xl font-bold text-zinc-100">{fmtS(avg)}</div><div className="text-sm text-zinc-500">average time</div></div>
           <div className="rounded-lg bg-zinc-950 p-3"><div className={`tnum text-2xl font-bold ${!target || onPace === batch.length ? 'text-emerald-300' : 'text-amber-300'}`}>{target ? `${onPace}/${batch.length}` : 'Off'}</div><div className="text-sm text-zinc-500">{target ? `within ${fmtS(target)}` : 'no target set'}</div></div>
         </div>
+        {fixed > 0 && <p className="mt-3 text-sm text-emerald-300">You got {fixed} retr{fixed === 1 ? 'y' : 'ies'} right after missing the pattern earlier. That's the learning sticking.</p>}
         <h3 className="mb-2 mt-6 font-semibold text-zinc-100">Every question</h3>
         <ul className="divide-y divide-zinc-800 rounded-md border border-zinc-800">
           {batch.map((x, i) => (
             <li key={i} className="flex items-center gap-3 px-3 py-2 text-[15px]">
               {x.right ? <CheckCircle2 size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-rose-400" />}
-              <span className="flex-1 text-zinc-200">{x.title}</span>
+              <span className="flex-1 text-zinc-200">{x.title}{x.retry && <span className="ml-2 text-xs text-zinc-500">retry</span>}</span>
+              {!x.right && <span className="text-xs text-zinc-500">answer: {FINDER_BY_ID[BY_ID[x.id].answer].name}</span>}
               <span className={`tnum font-mono text-sm ${target && x.secs > target ? 'text-amber-300' : 'text-zinc-400'}`}>{fmtS(x.secs)}{target && x.secs > target ? ' over' : ''}</span>
             </li>
           ))}
         </ul>
         {slow.length > 0 && <p className="mt-3 text-sm text-zinc-400">Over target: {slow.map((x) => x.title).join(', ')}. In a real interview you have a minute or two to name the approach before you start coding.</p>}
         <div className="mt-6 flex gap-2">
-          <Button onClick={() => { setSummary(false); setIdx((i) => i + 1); }}>Next {sessionLen} questions <Kbd>Enter</Kbd></Button>
+          <Button onClick={newSession}>Next session <Kbd>Enter</Kbd></Button>
         </div>
       </Card>
+      <WhereYouAre stats={stats} onLearn={onLearn} />
+      </div>
     );
   }
 
+  if (!ex) return null;
+
   if (!running) {
+    const resuming = s.pos > 0 || s.log.length > 0;
     return (
-      <Card className="mx-auto max-w-xl p-8 text-center">
+      <div className="mx-auto max-w-2xl space-y-5">
+      <Card className="p-8 text-center">
         <Timer className="mx-auto mb-3 text-violet-400" size={28} />
-        <h2 className="text-lg font-semibold text-zinc-100">Pattern finder</h2>
+        <h2 className="text-lg font-semibold text-zinc-100">{resuming ? 'Pick up where you left off' : 'Pattern finder'}</h2>
         <p className="mt-2 text-zinc-400">
-          You get a real interview problem with an example and constraints. Pick the pattern that gives the most
-          efficient solution. A stopwatch tracks each answer but never cuts you off. After every {sessionLen} questions
-          you get a report on accuracy and whether you were on pace.
+          {resuming ? `You're on question ${s.pos + 1} of ${s.ids.length}, with ${s.log.filter((x) => x.right).length} of ${s.log.length} right so far.`
+            : `Pick the pattern that gives the most efficient solution. A stopwatch tracks each answer but never cuts you off. Miss one and that pattern comes back a few questions later so it sticks. Your place is saved if you leave to read a lesson.`}
         </p>
         <p className="mt-4 text-sm font-medium text-zinc-300">Target time per question</p>
         <div className="mt-2 flex flex-wrap justify-center gap-1.5">
@@ -133,10 +223,20 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
           ))}
         </div>
         <p className="mt-3 text-sm text-zinc-500">{queue.length} problems unlocked · keys <Kbd>1</Kbd>–<Kbd>4</Kbd></p>
-        <Button className="mt-5" onClick={() => setRunning(true)}><Play size={15} />Start <Kbd>Enter</Kbd></Button>
+        <div className="mt-5 flex justify-center gap-2">
+          <Button onClick={() => { start.current = Date.now() - s.elapsed * 1000; setS((x) => ({ ...x, running: true })); }}><Play size={15} />{resuming ? 'Continue' : 'Start'} <Kbd>Enter</Kbd></Button>
+          {resuming && <Button variant="ghost" onClick={newSession}><RotateCcw size={14} />New session</Button>}
+        </div>
       </Card>
+      <WhereYouAre stats={stats} onLearn={onLearn} />
+      </div>
     );
   }
+
+  const answered = s.log.length;
+  const rightCount = s.log.filter((x) => x.right).length;
+  const isRetry = s.retries.includes(ex.id);
+  const justMissed = done && pick !== ex.answer;
 
   const right = pick === ex.answer;
   const ans = FINDER_BY_ID[ex.answer];
@@ -149,9 +249,10 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <div className="mb-2 h-1 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-violet-500 transition-all" style={{ width: `${((s.pos + (done ? 1 : 0)) / s.ids.length) * 100}%` }} /></div>
       <div className="mb-3 flex items-center justify-between text-sm text-zinc-500">
-        <span className="tnum">Question {(log.length - (done ? 1 : 0)) % sessionLen + 1} of {sessionLen} this session</span>
-        <span className="tnum">{score.right} of {score.total} right this session</span>
+        <span className="tnum">Question {s.pos + 1} of {s.ids.length}{isRetry ? ' · retry of a pattern you missed' : ''}</span>
+        <span className="tnum">{rightCount} of {answered} right · {stats.seen}/{stats.total} problems seen overall</span>
       </div>
       {target > 0 && !done && (
         <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-zinc-800">
@@ -188,6 +289,7 @@ export default function PatternDrill({ queue, onResult, onLearn }: Props) {
               : <><XCircle size={18} className="text-rose-400" /><span className="text-rose-300">Not this one.</span></>}
             <span className="text-zinc-300">The best fit is <span className="hl font-semibold text-zinc-100">{ans.name}</span>.</span>
           </p>
+          {justMissed && <p className="mb-4 rounded-md border border-violet-500/30 px-3 py-2 text-sm text-zinc-300">Saved to your tracker. Another {ans.name.toLowerCase()} problem comes up in a few questions, and this one again at the end of the session, so you practice spotting it until it sticks.</p>}
           <div className="space-y-4 text-[15px] leading-relaxed">
             <Sec t="The clue in the problem">{ex.clue}</Sec>
             <Sec t="The obvious approach">{ex.brute}</Sec>
@@ -227,5 +329,33 @@ function Template({ code, name }: { code: string; name: string }) {
       <button onClick={() => setOpen(!open)} className="text-sm font-medium text-violet-300 hover:underline">{open ? 'Hide' : 'Show'} the {name.toLowerCase()} template</button>
       {open && <pre className="mt-2 overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 font-mono text-[13px] leading-relaxed">{code.split('\n').map((line, i) => <div key={i}>{line ? highlight(line, `t${i}`) : ' '}</div>)}</pre>}
     </div>
+  );
+}
+
+function WhereYouAre({ stats, onLearn }: { stats: ReturnType<typeof finderStats>; onLearn?: (id: string) => void }) {
+  if (!stats.tries) return null;
+  const rows = stats.rows.filter((r) => r.tries > 0).sort((a, b) => a.acc - b.acc);
+  const notYet = stats.rows.filter((r) => r.tries === 0);
+  return (
+    <Card className="p-5">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h3 className="font-semibold text-zinc-100">Where you are</h3>
+        <span className="tnum text-sm text-zinc-400">{stats.seen}/{stats.total} problems seen · {Math.round(stats.acc * 100)}% right</span>
+      </div>
+      <ul className="space-y-2">
+        {rows.map((r) => {
+          const l = FINDER_BY_ID[r.id]?.lesson;
+          return (
+            <li key={r.id} className="grid grid-cols-[1fr_90px_110px] items-center gap-3 text-sm">
+              <span className="text-zinc-200">{r.name} <span className="text-xs text-zinc-500">{r.right}/{r.tries}</span></span>
+              <Bar value={r.acc} color={r.acc >= 0.8 ? 'bg-emerald-500' : r.acc >= 0.5 ? 'bg-amber-500' : 'bg-rose-500'} />
+              <span className="text-right text-xs">{r.acc >= 0.8 ? <span className="text-emerald-400">strong</span> : l && onLearn ? <button className="link" onClick={() => onLearn(l)}>{r.acc < 0.5 ? 'relearn it' : 'review lesson'}</button> : <span className="text-amber-300">shaky</span>}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {notYet.length > 0 && <p className="mt-3 text-xs text-zinc-500">Not seen yet: {notYet.map((r) => r.name).join(', ')}</p>}
+      <p className="mt-2 text-xs text-zinc-500">Each session starts with problems you missed, then reviews that are due, then your weakest patterns.</p>
+    </Card>
   );
 }
