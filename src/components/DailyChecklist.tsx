@@ -42,7 +42,7 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   useEffect(() => { if (!state.picks || !state.lesson) save({ ...state, picks, lesson: lessonId }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetch(FEED_URL).then((r) => r.json()).then((d) => setFeed(d.jobs)).catch(() => setFeedError(true));
+    fetch(FEED_URL, { cache: 'no-store' }).then((r) => r.json()).then((d) => setFeed(d.jobs)).catch(() => setFeedError(true));
   }, []);
 
   function save(s: DayState) { setState(s); setLocal(key, s); }
