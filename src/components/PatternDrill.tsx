@@ -5,7 +5,7 @@ import { FINDER_BY_ID, FINDER_PATTERNS } from '../data/finder';
 import { LESSON_BY_ID } from '../data/lessons';
 import { shuffle } from '../lib/check';
 import { highlight } from '../lib/highlight';
-import { getLocal, mastery, setLocal } from '../lib/storage';
+import { getLocal, mastery, setLocal, today } from '../lib/storage';
 import type { PatternExercise, Progress } from '../types';
 import { Bar, Button, Card, CompanyTags, DiffTag, Kbd } from './ui';
 
@@ -132,6 +132,14 @@ export default function PatternDrill({ queue, progress, filterId, onResult, onLe
     const took = (Date.now() - start.current) / 1000;
     setSecs(took);
     onResult(ex.id, right ? (target && took <= target / 2 ? 3 : 2) : 0, right ? [] : ['pattern-miss']);
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+    const bkey = `pyforge.finder.baseline.${today()}`;
+    if (getLocal<number | null>(bkey, null) == null) {
+      // first logged answer today: remember how many problems were already answered today before the log existed
+      const logged = new Set(finderAnswers().filter((a) => a.at >= dayStart.getTime()).map((a) => a.id));
+      const before = PATTERN_DRILLS.filter((e) => (progress.cards[e.id]?.lastSeen ?? 0) >= dayStart.getTime() && !logged.has(e.id)).length;
+      setLocal(bkey, logged.size ? null : before);
+    }
     setLocal(ANSWERS, [...finderAnswers().slice(-499), { at: Date.now(), id: ex.id, right }]);
     setS((x) => {
       let ids = x.ids, retries = x.retries;

@@ -53,10 +53,7 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const start = new Date(); start.setHours(0, 0, 0, 0);
   const seenToday = (pred: (id: string) => boolean) => Object.entries(progress.cards).filter(([id, c]) => pred(id) && c.lastSeen >= start.getTime()).length;
   // Counts every answer today, mid-session included, so you never have to finish a whole session to tick this.
-  const loggedToday = finderAnswers().filter((a) => a.at >= start.getTime());
-  const logged = new Set(loggedToday.map((a) => a.id));
-  // answers from before the answer log existed only show up as "seen today", so add those once
-  const finderToday = loggedToday.length + seenToday((id) => PATTERN_IDS.has(id) && !logged.has(id));
+  const finderToday = finderCountToday(progress, start.getTime());
   const cardsToday = seenToday((id) => id.startsWith('fc-'));
   const oaToday = getLocal<{ at: number }[]>('pyforge.oa.history', []).filter((h) => h.at >= start.getTime()).length;
   const lesson = LESSONS.find((l) => l.id === lessonId)!;
@@ -190,4 +187,16 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
       </section>
     </Card>
   );
+}
+
+/** Pattern finder answers given today. Answers before the answer log existed are counted once per problem. */
+function finderCountToday(progress: Progress, since: number) {
+  const all = finderAnswers();
+  const loggedToday = all.filter((a) => a.at >= since);
+  const base = getLocal<number | null>(`pyforge.finder.baseline.${today()}`, null);
+  if (base != null) return base + loggedToday.length;
+  const loggedEver: Record<string, number> = {};
+  for (const a of all) loggedEver[a.id] = (loggedEver[a.id] ?? 0) + 1;
+  const earlier = Object.entries(progress.cards).filter(([id, c]) => PATTERN_IDS.has(id) && c.lastSeen >= since && c.attempts > (loggedEver[id] ?? 0)).length;
+  return earlier + loggedToday.length;
 }
