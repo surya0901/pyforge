@@ -1,8 +1,10 @@
-import { CheckCircle2, ChevronLeft, Circle, EyeOff, Lightbulb, Play, RotateCcw } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Check, CheckCircle2, ChevronLeft, Circle, EyeOff, Lightbulb, Play, RotateCcw, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BLUEPRINTS, IDIOMS } from '../data/blueprints';
 import { LESSONS } from '../data/lessons';
-import { runTests, warmUp, type RunResult } from '../lib/pyrunner';
+import { checkSteps, runTests, warmUp, type RunResult, type StepCheck, type StepReport } from '../lib/pyrunner';
+import type { SampleFn } from '../lib/cloud';
+import { useSample } from './AI';
 import { getLocal, setLocal } from '../lib/storage';
 import type { Blueprint } from '../types';
 import CodeEditor from './CodeEditor';
@@ -56,6 +58,7 @@ export function lint(code: string, p: Blueprint): Lint[] {
     if (/\[\s*\[\s*\]\s*\]\s*\*/.test(l)) out.push({ line: n, msg: '[[]] * n makes n copies of the SAME list, so appending to one bucket appends to all of them. Use [[] for _ in range(n)].' });
     if (/\b(true|false)\b/.test(l)) out.push({ line: n, msg: 'Python capitalizes booleans: True and False.' });
     if (/\b(null|nil|undefined)\b/.test(l)) out.push({ line: n, msg: 'Python uses None for "no value".' });
+    if (/^\s*(int|long|double|float|String|char|boolean|bool|var|let|const|auto)\s+\w+\s*=/.test(l)) out.push({ line: n, msg: `Python doesn't declare types. Write ${l.trim().replace(/^\w+\s+/, '')} instead.` });
     if (/\.push\(/.test(l)) out.push({ line: n, msg: 'Python lists use .append(), not .push().' });
     if (/\.length\b/.test(l)) out.push({ line: n, msg: 'Use len(x) for the length, not x.length.' });
     if (/&&|\|\|/.test(l)) out.push({ line: n, msg: 'Python spells these as and / or.' });
@@ -198,24 +201,62 @@ export function WeakIdioms({ onPick, active, compact }: { onPick?: (id: string) 
   );
 }
 
+type Shown = StepReport['status'] | 'syntax' | 'pending';
+
+const pyText = (s?: string) => (s ?? '').replace(/\bnull\b/g, 'None').replace(/\btrue\b/g, 'True').replace(/\bfalse\b/g, 'False');
+const lineGoal = (what?: string) => (what?.startsWith('return') ? `should ${what}` : `should make ${what}`);
+const lineDone = (what?: string) => (what?.startsWith('return') ? `does ${what}` : `makes ${what}`);
+
+function refCode(p: Blueprint) {
+  return `${p.signature}\n${p.steps.map((s, i) => `    # Step ${i + 1}: ${s.text}\n${indent(s.code)}`).join('\n')}\n`;
+}
+
+/** Lines of real code typed under a step's comment. */
+function stepRegion(code: string, i: number) {
+  const lines = code.split('\n');
+  const at = lines.findIndex((l) => new RegExp(`^\\s*#\\s*Step\\s*${i + 1}\\b`, 'i').test(l));
+  if (at < 0) return { at, end: at, body: [] as string[] };
+  let end = at + 1;
+  while (end < lines.length && !/^\s*#\s*Step\s*\d+/i.test(lines[end])) end++;
+  return { at, end, body: lines.slice(at + 1, end).filter((l) => l.trim() && !l.trim().startsWith('#')) };
+}
+
 function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; onNext: (id: string) => void }) {
   const prev = getStatus()[p.id];
-  const [blind, setBlind] = useState(!!prev?.guided && !prev?.blind);
-  const [code, setCode] = useState(() => starter(p, !!prev?.guided && !prev?.blind));
+  const startBlind = !!prev?.guided && !prev?.blind;
+  const [blind, setBlind] = useState(startBlind);
+  const [code, setCode] = useState(() => starter(p, startBlind));
   const [levels, setLevels] = useState<Level[]>(() => p.steps.map(() => 0));
   const [busy, setBusy] = useState(false);
   const [r, setR] = useState<RunResult>();
-  const [ranLint, setRanLint] = useState<Lint[]>([]);
   const [pasteNote, setPasteNote] = useState(false);
   const [passed, setPassed] = useState(false);
+  const [check, setCheck] = useState<StepCheck>();
+  const [lastGood, setLastGood] = useState<StepReport[]>();
+  const [checking, setChecking] = useState(false);
+  const seq = useRef(0);
+  const sample = useSample();
   const hintsUsed = levels.reduce<number>((a, l) => a + l, 0);
+  const fname = p.signature.match(/def (\w+)/)![1];
+  const ref = useMemo(() => refCode(p), [p]);
 
-  // Which reference lines are already in the editor, ignoring spacing. Many correct answers exist,
-  // so this is only used to point at the step that probably needs another look.
-  const typed = useMemo(() => new Set(code.split('\n').map(norm).filter(Boolean)), [code]);
-  const stepMatch = p.steps.map((s) => { const ls = s.code.split('\n').map(norm).filter(Boolean); return { got: ls.filter((x) => typed.has(x)).length, of: ls.length }; });
+  const runCheck = async (src: string) => {
+    const my = ++seq.current;
+    setChecking(true);
+    const c = await checkSteps({ user: src, ref, fname, call: p.func, tests: p.tests, postlude: p.postlude, nsteps: p.steps.length });
+    if (my !== seq.current) return;
+    setChecking(false);
+    setCheck(c);
+    if (c.steps) setLastGood(c.steps);
+  };
 
-  const reset = (b: boolean) => { setBlind(b); setCode(starter(p, b)); setLevels(p.steps.map(() => 0)); setR(undefined); setRanLint([]); setPassed(false); };
+  // Check the logic a moment after you stop typing.
+  useEffect(() => {
+    const t = setTimeout(() => runCheck(code), 900);
+    return () => clearTimeout(t);
+  }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reset = (b: boolean) => { setBlind(b); setCode(starter(p, b)); setLevels(p.steps.map(() => 0)); setR(undefined); setPassed(false); setCheck(undefined); setLastGood(undefined); };
 
   function hint(i: number) {
     const next = Math.min(3, levels[i] + 1) as Level;
@@ -227,24 +268,23 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
     if (next === 2) insertTemplate(i);
   }
 
-  /** Level 2: drop the fill in the blank template right under the step's comment. */
+  /** Level 2: put the fill in the blank lines under the step's comment, but only if you haven't started that step. */
   function insertTemplate(i: number) {
-    const tmpl = indent(p.steps[i].template);
+    const { at, end, body } = stepRegion(code, i);
+    if (body.length) return;
     const lines = code.split('\n');
-    const at = lines.findIndex((l) => l.trim().startsWith(`# Step ${i + 1}:`));
+    const tmpl = indent(p.steps[i].template);
     if (at >= 0) {
-      // skip anything already typed under this step, up to the next step comment
-      let end = at + 1;
-      while (end < lines.length && !lines[end].trim().startsWith('# Step ') && lines[end].trim()) end++;
-      lines.splice(end, 0, tmpl);
+      let k = end;
+      while (k > at + 1 && !lines[k - 1].trim()) k--;
+      lines.splice(k, 0, tmpl);
       setCode(lines.join('\n'));
     } else setCode(code.replace(/\s*$/, '') + '\n' + tmpl + '\n');
   }
 
   async function run() {
-    const l = lint(code, p);
-    setRanLint(l);
-    if (l.some((x) => x.msg.includes('____'))) { setR(undefined); return; }
+    runCheck(code);
+    if (/____/.test(code)) { setR(undefined); return; }
     setBusy(true);
     const src = code + (p.postlude ? '\n\n' + p.postlude + '\n' : '');
     const res = await runTests(src, p.func, 'code', p.tests, p.expected, 'exact');
@@ -261,12 +301,20 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
     }
   }
 
+  // What each step card shows. Passing every test means your logic is right, even if it differs from the blueprint.
+  const reports: (StepReport | undefined)[] = p.steps.map((_, i) => (check?.steps ?? lastGood)?.[i]);
+  const shown: Shown[] = p.steps.map((_, i) => {
+    if (passed) return 'ok';
+    if (check?.syntax && check.syntax.step === i + 1) return 'syntax';
+    return reports[i]?.status ?? 'pending';
+  });
+  const current = shown.findIndex((s) => s !== 'ok');
+  const doneSteps = shown.filter((s) => s === 'ok').length;
+
   const firstErr = r?.compileError ?? r?.results.find((t) => t.error)?.error;
   const friendly = firstErr ? explainError(firstErr, code, p) : null;
-  const failing = r && !r.compileError && r.results.some((t) => !t.ok);
-  const suspect = failing && !blind ? stepMatch.findIndex((m) => m.got < m.of) : -1;
   const liveLint = lint(code, p).filter((x) => !x.msg.includes('____') && !x.msg.startsWith('Keep the function'));
-  const shownLint = r || ranLint.length ? ranLint : liveLint;
+  const blanks = /____/.test(code);
   const nextP = BLUEPRINTS[(BLUEPRINTS.indexOf(p) + 1) % BLUEPRINTS.length];
 
   return (
@@ -285,64 +333,30 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
             <a href={`https://neetcode.io/problems/${p.nc}`} target="_blank" rel="noreferrer" className="link mt-2 inline-block text-sm">NeetCode page and video</a>
           </Card>
           {blind ? (
-            <Card className="p-4">
-              <h3 className="mb-1 text-sm font-semibold text-zinc-100">No steps this time</h3>
-              <p className="text-sm text-zinc-400">Write it from the function line. Say the 4 steps to yourself first, then type. This pass is what makes it stick.</p>
-              <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-500">
-                {p.steps.map((s, i) => <li key={i} className="blur-[3px] transition hover:blur-0" title="Hover only if you're really stuck">{s.text}</li>)}
-              </ol>
-              <button onClick={() => reset(false)} className="link mt-3 text-sm">Stuck? Go back to the blueprint</button>
-            </Card>
+            <BlindPanel p={p} check={check} ran={!!r} passed={passed} onBack={() => reset(false)} />
           ) : (
-            <ol className="space-y-3">
-              {p.steps.map((s, i) => {
-                const lv = levels[i];
-                const m = stepMatch[i];
-                return (
-                  <li key={i}>
-                    <Card className={`p-4 ${suspect === i ? 'border-amber-500/50' : ''}`}>
-                      <div className="flex items-start gap-3">
-                        <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${m.got === m.of ? 'bg-emerald-500/15 text-emerald-300' : 'bg-zinc-800 text-zinc-300'}`}>{i + 1}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[15px] text-zinc-100">{s.text}</p>
-                          {suspect === i && <p className="mt-1 text-sm text-amber-300">Tests are failing and this step looks different from the blueprint. Check it first.</p>}
-                          {lv >= 1 && <p className="mt-2 text-sm text-zinc-300"><span className="font-medium text-amber-300">Clue: </span>{s.clue}</p>}
-                          {lv >= 2 && (
-                            <div className="mt-2">
-                              <div className="text-xs text-zinc-500">{lv === 2 ? 'Added to your editor. Fill the ____ blanks:' : 'Fill in the blank:'}</div>
-                              <pre className="mt-1 overflow-x-auto rounded-md bg-zinc-950 px-3 py-2 font-mono text-[12.5px] text-zinc-300">{s.template}</pre>
-                            </div>
-                          )}
-                          {lv >= 3 && (
-                            <div className="mt-2">
-                              <div className="text-xs text-zinc-500">Exact lines. Type them yourself (paste is off), then say out loud what each one does:</div>
-                              <pre className="mt-1 overflow-x-auto rounded-md bg-zinc-950 px-3 py-2 font-mono text-[12.5px]">
-                                {s.code.split('\n').map((ln, k) => <div key={k} className={typed.has(norm(ln)) ? 'text-emerald-300' : 'text-zinc-100'}>{ln}</div>)}
-                              </pre>
-                            </div>
-                          )}
-                          <div className="mt-2 flex items-center gap-3">
-                            {lv < 3 && (
-                              <button onClick={() => hint(i)} className="flex items-center gap-1 text-sm text-violet-300 hover:underline">
-                                <Lightbulb size={14} />{lv === 0 ? 'Hint: syntax clue' : lv === 1 ? 'Hint: fill in the blank' : 'Hint: show the exact lines'}
-                              </button>
-                            )}
-                            <span className="text-xs text-zinc-500">{m.got}/{m.of} lines match the blueprint</span>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  </li>
-                );
-              })}
-            </ol>
+            <>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(doneSteps / p.steps.length) * 100}%` }} /></div>
+                <span className="tnum text-zinc-400">{doneSteps}/{p.steps.length} steps right</span>
+                {checking && <span className="text-xs text-zinc-500">checking…</span>}
+              </div>
+              <p className="-mt-2 text-xs text-zinc-500">Write each step in your own words and names. The checker runs your code next to the blueprint and compares what each step actually produces, so any correct way counts.</p>
+              <ol className="space-y-3">
+                {p.steps.map((s, i) => (
+                  <StepCard key={i} i={i} s={s} p={p} level={levels[i]} onHint={() => hint(i)} rep={reports[i]} shown={shown[i]} isCurrent={i === current}
+                    syntax={check?.syntax?.step === i + 1 ? check.syntax : undefined} code={code} sample={sample} />
+                ))}
+              </ol>
+            </>
           )}
         </div>
 
         <div>
-          <CodeEditor value={code} onChange={(v) => { setCode(v); setPasteNote(false); }} onRun={run} errorLine={r?.line ?? r?.results.find((t) => t.line)?.line} minRows={18}
+          <CodeEditor value={code} onChange={(v) => { setCode(v); setPasteNote(false); }} onRun={run}
+            errorLine={check?.syntax?.line ?? r?.line ?? r?.results.find((t) => t.line)?.line} minRows={18}
             onPaste={(e) => { e.preventDefault(); setPasteNote(true); }} />
-          {pasteNote && <p className="mt-2 text-sm text-amber-300">Paste is off here. Typing it is the whole point: that's what builds the muscle memory.</p>}
+          {pasteNote && <p className="mt-2 text-sm text-amber-300">Paste is off here. Typing it is the whole point: that's what builds the reflex.</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button onClick={run} disabled={busy}><Play size={14} />{busy ? 'Running…' : 'Run tests'}</Button>
             <span className="text-xs text-zinc-500">Ctrl or Cmd + Enter</span>
@@ -351,21 +365,22 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
             <Button variant="ghost" onClick={() => reset(blind)}><RotateCcw size={14} />Start over</Button>
           </div>
 
-          {shownLint.length > 0 && (
-            <Card className="mt-3 border-amber-500/30 p-4">
-              <h3 className="mb-2 text-sm font-semibold text-amber-200">Check these first</h3>
+          {liveLint.length > 0 && (
+            <Card className="mt-3 border-amber-500/40 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-zinc-100">Python slips spotted</h3>
               <ul className="space-y-1 text-sm text-zinc-200">
-                {shownLint.slice(0, 6).map((x, i) => <li key={i}>{x.line ? <span className="mr-2 font-mono text-xs text-zinc-500">line {x.line}</span> : null}{x.msg}</li>)}
+                {liveLint.slice(0, 6).map((x, i) => <li key={i}>{x.line ? <span className="mr-2 font-mono text-xs text-zinc-500">line {x.line}</span> : null}{x.msg}</li>)}
               </ul>
             </Card>
           )}
+          {blanks && <p className="mt-3 text-sm text-zinc-400">Fill every <span className="font-mono">____</span> blank, then the tests can run.</p>}
           {busy && !r && <p className="mt-3 text-sm text-zinc-500">Starting Python the first time takes a few seconds…</p>}
           {r && <Results r={r} p={p} friendly={friendly} />}
 
           {passed && (
             <Card className="mt-3 border-emerald-500/40 p-4">
               <p className="font-semibold text-emerald-300">{blind ? 'Passed blind. This one is yours now.' : hintsUsed === 0 ? 'Passed with no hints.' : `Passed, using ${hintsUsed} hint level${hintsUsed === 1 ? '' : 's'}.`}</p>
-              <p className="mt-1 text-sm text-zinc-300">{blind ? 'Come back to it in a few days and do it blind once more.' : 'Now type it again with no blueprint. Doing it twice is what moves it from copying to recall.'}</p>
+              <p className="mt-1 text-sm text-zinc-300">{blind ? 'Come back in a few days and do it blind once more. Speed comes from repeats.' : 'Now type it again with no blueprint. The second time is what moves it from copying to recall.'}</p>
               <div className="mt-3 flex gap-2">
                 {!blind && <Button onClick={() => reset(true)}><EyeOff size={14} />Start the blind pass</Button>}
                 <Button variant={blind ? 'primary' : 'ghost'} onClick={() => onNext(nextP.id)}>Next: {nextP.title}</Button>
@@ -375,6 +390,173 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
         </div>
       </div>
     </div>
+  );
+}
+
+function StepCard({ i, s, p, level, onHint, rep, shown, isCurrent, syntax, code, sample }: {
+  i: number; s: Blueprint['steps'][number]; p: Blueprint; level: Level; onHint: () => void; rep?: StepReport; shown: Shown; isCurrent: boolean;
+  syntax?: { msg: string; line?: number }; code: string; sample: SampleFn | null | undefined;
+}) {
+  const [ai, setAi] = useState(''); const [aiBusy, setAiBusy] = useState(false);
+  const typedNorm = useMemo(() => new Set(code.split('\n').map(norm).filter(Boolean)), [code]);
+  // A later step can't be fully judged while an earlier one is wrong, but its own slip is still worth showing.
+  const blocked = !!rep?.after && (shown === 'empty' || shown === 'loop' || shown === 'error');
+  const dependsOn = rep?.after && shown === 'wrong' ? rep.after : undefined;
+  const pill: Record<Shown, [string, string]> = {
+    ok: ['Logic matches', 'bg-emerald-500/15 text-emerald-300'],
+    wrong: ['Not right yet', 'bg-rose-500/15 text-rose-300'],
+    empty: ['Not written yet', 'bg-zinc-800 text-zinc-400'],
+    error: ['Error', 'bg-rose-500/15 text-rose-300'],
+    loop: ['Loops forever', 'bg-rose-500/15 text-rose-300'],
+    syntax: ['Not valid Python yet', 'bg-amber-500/15 text-amber-300'],
+    pending: ['', ''],
+  };
+  const [label, cls] = blocked ? [`Waiting on step ${rep!.after}`, 'bg-zinc-800 text-zinc-400'] : pill[shown];
+  const showLines = rep && rep.lines.some((l) => l.status !== 'flow') && (isCurrent || shown === 'wrong') && !blocked;
+  const mine = stepRegion(code, i).body;
+
+  async function askClaude() {
+    if (!sample) return;
+    setAiBusy(true); setAi('');
+    const prompt = `You are a patient Python coach helping a student who knows the logic but freezes when typing code. Problem: ${p.title}. ${p.statement}\nThe plan has 4 steps. They're on step ${i + 1}: "${s.text}".\nTheir whole function right now:\n\n${code}\n\nTheir lines for this step:\n${mine.join('\n') || '(nothing yet)'}\n\nAn automatic checker that runs their code next to a reference says:\n${(rep?.why ?? []).join('\n') || (syntax ? `Syntax error on line ${syntax.line}: ${syntax.msg}` : rep?.error?.msg ?? 'nothing specific')}\n\nReply in under 120 words, plain text, no markdown headers. First say in one sentence what this step must accomplish. Then point at the exact line of theirs that's off and explain why, in terms of what value it should hold for a small example. End with a question that nudges them to the fix. Don't write the full solution. You may show at most one corrected line only if they are clearly stuck on syntax.`;
+    try {
+      const out = await sample(prompt, { onText: ({ text }: { text: string }) => setAi(text), cache: false });
+      setAi(out.text);
+    } catch { setAi('Could not reach Claude right now. Try again in a minute.'); }
+    setAiBusy(false);
+  }
+
+  return (
+    <li>
+      <Card className={`p-4 ${isCurrent ? 'ring-1 ring-violet-500/60' : ''}`}>
+        <div className="flex items-start gap-3">
+          <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${shown === 'ok' ? 'bg-emerald-500/15 text-emerald-300' : shown === 'wrong' || shown === 'error' || shown === 'loop' ? 'bg-rose-500/15 text-rose-300' : 'bg-zinc-800 text-zinc-300'}`}>
+            {shown === 'ok' ? <Check size={13} /> : i + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-[15px] text-zinc-100">{s.text}</p>
+              {label && <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>{label}</span>}
+            </div>
+
+            {blocked && <p className="mt-1 text-sm text-zinc-500">Fix step {rep!.after} first. This step uses what that one makes, so it can't be judged yet.</p>}
+
+            {syntax && (
+              <div className="mt-2 rounded-md border border-amber-500/40 px-3 py-2 text-sm">
+                <div className="text-zinc-100">Line {syntax.line}: {syntaxHelp(syntax.msg, code.split('\n')[(syntax.line ?? 1) - 1] ?? '')}</div>
+                <div className="mt-1 font-mono text-xs text-zinc-500">{syntax.msg}</div>
+              </div>
+            )}
+
+            {!blocked && shown === 'wrong' && rep?.why && (
+              <div className="mt-2 rounded-md border border-rose-500/30 px-3 py-2 text-sm">
+                <div className="mb-1 font-medium text-rose-300">Why it's off</div>
+                <ul className="space-y-1.5 text-zinc-200">{rep.why.map((w, k) => <li key={k}>{w}</li>)}</ul>
+                <div className="mt-2 border-t border-zinc-800 pt-2 text-zinc-400"><span className="text-zinc-300">How to think about it: </span>say the goal out loud first ("{s.text.toLowerCase()}"). Then run the example input through your lines in your head and write down what each one leaves behind. The first value that doesn't match is the line to fix.</div>
+                {dependsOn && <div className="mt-1 text-xs text-zinc-500">Step {dependsOn} is also off, so recheck this one after fixing that.</div>}
+              </div>
+            )}
+            {!blocked && shown === 'error' && rep?.error && (
+              <div className="mt-2 rounded-md border border-rose-500/30 px-3 py-2 text-sm">
+                <div className="text-zinc-100">{explainError(rep.error.msg, code, p) ?? 'This step crashes when it runs.'}</div>
+                <div className="mt-1 font-mono text-xs text-rose-300">{rep.error.msg}{rep.error.line ? ` (line ${rep.error.line})` : ''}</div>
+              </div>
+            )}
+            {!blocked && shown === 'loop' && (
+              <p className="mt-2 rounded-md border border-rose-500/30 px-3 py-2 text-sm text-zinc-200">
+                This step never finishes{rep?.loop?.line ? ` (stuck around line ${rep.loop.line})` : ''}. In a while loop, something inside the body has to move toward making the condition false: a pointer moves, a count goes up, an item is removed.
+              </p>
+            )}
+
+            {showLines && (
+              <ul className="mt-2 space-y-1 text-sm">
+                {rep!.lines.map((l, k) => (
+                  <li key={k} className="flex gap-2">
+                    <span className={`mt-0.5 w-4 shrink-0 text-center ${l.status === 'ok' ? 'text-emerald-400' : l.status === 'miss' ? 'text-zinc-500' : 'text-zinc-600'}`}>{l.status === 'ok' ? '✓' : l.status === 'miss' ? '○' : '·'}</span>
+                    <span className={l.status === 'ok' ? 'text-zinc-400' : l.status === 'miss' ? 'text-zinc-200' : 'text-zinc-500'}>
+                      Line {k + 1} {l.status === 'flow' ? 'is a loop, if or helper the next lines build on' : l.status === 'ok' ? lineDone(l.what) : lineGoal(l.what)}
+                    </span>
+                  </li>
+                ))}
+                <li className="pl-6 text-xs text-zinc-500">Values are for the first test input. Your names and wording can be anything.</li>
+              </ul>
+            )}
+
+            {level >= 1 && <p className="mt-2 text-sm text-zinc-300"><span className="font-medium text-amber-300">Clue: </span>{s.clue}</p>}
+            {level >= 2 && (
+              <div className="mt-2">
+                <div className="text-xs text-zinc-500">Fill in the blank{mine.length ? '' : ' (added to your editor)'}:</div>
+                <pre className="mt-1 overflow-x-auto rounded-md bg-zinc-950 px-3 py-2 font-mono text-[12.5px] text-zinc-300">{s.template}</pre>
+              </div>
+            )}
+            {level >= 3 && (
+              <div className="mt-2">
+                <div className="text-xs text-zinc-500">The blueprint's lines. Type them yourself (paste is off), then say what each one does:</div>
+                <pre className="mt-1 overflow-x-auto rounded-md bg-zinc-950 px-3 py-2 font-mono text-[12.5px]">
+                  {s.code.split('\n').map((ln, k) => <div key={k} className={typedNorm.has(norm(ln)) ? 'text-emerald-300' : 'text-zinc-100'}>{ln}</div>)}
+                </pre>
+              </div>
+            )}
+            {ai && <div className="mt-2 whitespace-pre-wrap rounded-md border border-violet-500/30 px-3 py-2 text-sm text-zinc-200">{ai}</div>}
+            {shown !== 'ok' && (
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                {level < 3 && (
+                  <button onClick={onHint} className="flex items-center gap-1 text-sm text-violet-300 hover:underline">
+                    <Lightbulb size={14} />{level === 0 ? 'Hint: syntax clue' : level === 1 ? 'Hint: fill in the blank' : 'Hint: show the lines'}
+                  </button>
+                )}
+                {sample && (shown === 'wrong' || shown === 'syntax' || shown === 'error') && !blocked && (
+                  <button onClick={askClaude} disabled={aiBusy} className="flex items-center gap-1 text-sm text-violet-300 hover:underline"><Sparkles size={14} />{aiBusy ? 'Asking…' : 'Ask Claude to explain'}</button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    </li>
+  );
+}
+
+/** Plain English for the syntax errors people hit while translating logic into Python. */
+function syntaxHelp(msg: string, line: string) {
+  const t = line.trim();
+  if (/____/.test(t)) return 'there is still a ____ blank to fill in.';
+  if (/^(int|long|double|float|String|string|char|bool|boolean|var|let|const|auto)\s+\w+\s*=/.test(t)) return `Python doesn't declare types. Just write ${t.replace(/^\w+\s+/, '')}`;
+  if (/^(def|if|elif|else|for|while|try|except|class|with)\b/.test(t) && !t.includes(':')) return 'a line that starts a block has to end with a colon.';
+  if (/\belse\s+if\b/.test(t)) return 'Python spells else if as elif.';
+  if (/&&|\|\|/.test(t)) return 'Python uses and / or.';
+  if (/\w(\+\+|--)/.test(t)) return 'Python has no ++ or --. Use += 1 or -= 1.';
+  if (/[{};]\s*$/.test(t)) return "Python doesn't use braces or semicolons. Blocks are made by the colon and indentation.";
+  if (/indent/i.test(msg)) return "the indentation doesn't line up. Inside the function is 4 spaces, and each loop or if adds 4 more.";
+  if (/never closed|unmatched|was never closed/i.test(msg)) return 'a bracket or parenthesis is not closed (or closed twice).';
+  if (/'=' |cannot assign|Maybe you meant '=='/i.test(msg)) return 'use == to compare. A single = stores a value.';
+  return "this line isn't valid Python yet. Read it left to right and check each symbol.";
+}
+
+function BlindPanel({ p, check, ran, passed, onBack }: { p: Blueprint; check?: StepCheck; ran: boolean; passed: boolean; onBack: () => void }) {
+  const st = check?.steps;
+  const firstBad = st?.find((s) => s.status !== 'ok');
+  return (
+    <Card className="p-4">
+      <h3 className="mb-1 text-sm font-semibold text-zinc-100">No steps this time</h3>
+      <p className="text-sm text-zinc-400">Write it from the function line. Say the 4 steps to yourself first, then type. This pass is what makes it stick.</p>
+      {ran && !passed && st ? (
+        <div className="mt-3">
+          <div className="mb-1 text-xs text-zinc-500">Which blueprint steps your code already does:</div>
+          <ul className="space-y-1 text-sm">
+            {st.map((s) => (
+              <li key={s.step} className="flex gap-2"><span className={s.status === 'ok' ? 'text-emerald-400' : 'text-zinc-500'}>{s.status === 'ok' ? '✓' : '○'}</span><span className={s.status === 'ok' ? 'text-zinc-400' : 'text-zinc-200'}>Step {s.step}{s.status === 'ok' ? '' : ': not yet'}</span></li>
+            ))}
+          </ul>
+          {firstBad?.why?.[0] && <p className="mt-2 rounded-md border border-rose-500/30 px-3 py-2 text-sm text-zinc-200">{firstBad.why[0]}</p>}
+        </div>
+      ) : (
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-500">
+          {p.steps.map((s, i) => <li key={i} className="blur-[3px] transition hover:blur-0" title="Hover only if you're really stuck">{s.text}</li>)}
+        </ol>
+      )}
+      <button onClick={onBack} className="link mt-3 text-sm">Stuck? Go back to the blueprint</button>
+    </Card>
   );
 }
 
@@ -389,11 +571,12 @@ function Results({ r, p, friendly }: { r: RunResult; p: Blueprint; friendly: str
     </div>
   );
   const passed = r.results.filter((t) => t.ok).length;
-  const fmtArgs = (a: unknown[]) => a.map((x) => JSON.stringify(x)).join(', ');
+  const fmtArgs = (a: unknown[]) => pyText(a.map((x) => JSON.stringify(x)).join(', '));
   return (
     <Card className="mt-3 p-4">
       <p className={`mb-2 font-semibold ${passed === r.results.length ? 'text-emerald-300' : 'text-rose-300'}`}>{passed}/{r.results.length} tests passed</p>
       {friendly && <p className="mb-2 rounded-md border border-amber-500/40 px-3 py-2 text-sm text-zinc-100">{friendly}</p>}
+      {passed < r.results.length && <p className="mb-2 text-sm text-zinc-400">The step cards on the left show which step is producing the wrong values.</p>}
       <ul className="space-y-1.5">
         {r.results.map((t, i) => (
           <li key={i} className="rounded-md bg-zinc-950 px-3 py-2 text-[13px]">
@@ -401,7 +584,7 @@ function Results({ r, p, friendly }: { r: RunResult; p: Blueprint; friendly: str
             <span className="ml-2 font-mono text-zinc-500">{p.func}({fmtArgs(p.tests[i]).slice(0, 90)})</span>
             {!t.ok && (
               <div className="mt-1 font-mono text-zinc-300">
-                {t.error ? <div className="text-rose-300">{t.error}{t.line ? ` (line ${t.line})` : ''}</div> : <div>Got {t.got}, expected {t.expected}</div>}
+                {t.error ? <div className="text-rose-300">{t.error}{t.line ? ` (line ${t.line})` : ''}</div> : <div>Got {pyText(t.got)}, expected {pyText(t.expected)}</div>}
               </div>
             )}
             {t.stdout && <pre className="mt-1 whitespace-pre-wrap font-mono text-zinc-500">printed: {t.stdout}</pre>}

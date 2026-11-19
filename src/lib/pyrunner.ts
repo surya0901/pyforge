@@ -6,6 +6,8 @@
 export interface TestResult { ok: boolean; got?: string; expected?: string; error?: string; line?: number; stdout?: string; ms?: number }
 export interface RunResult { compileError?: string; line?: number; results: TestResult[]; timeout?: boolean; loadError?: string }
 
+import STEPCHECK from './stepcheck.py?raw';
+
 const SITE = 'https://surya0901.github.io/pyforge/';
 const onSite = /github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
 const PY_BASE = onSite ? new URL('./', document.baseURI).href : SITE;
@@ -88,10 +90,15 @@ self.onmessage = async (e) => {
       const { loadPyodide } = await import(base + 'pyodide/pyodide.mjs');
       py = await loadPyodide({ indexURL: base + 'pyodide/' });
       py.runPython(harness);
+      py.runPython(e.data.stepcheck);
       self.postMessage({ id, ok: true });
     } else if (type === 'run') {
       py.globals.set('__payload', payload);
       const out = py.runPython('pyforge_run(__payload)');
+      self.postMessage({ id, ok: true, out });
+    } else if (type === 'steps') {
+      py.globals.set('__payload', payload);
+      const out = py.runPython('pyforge_steps(__payload)');
       self.postMessage({ id, ok: true, out });
     }
   } catch (err) {
@@ -113,7 +120,7 @@ export function warmUp(): Promise<void> {
   if (ready) return ready;
   worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })), { type: 'module' });
   worker.onmessage = (e) => { const r = pending.get(e.data.id); pending.delete(e.data.id); r?.(e.data); };
-  ready = call({ type: 'init', base: PY_BASE, harness: HARNESS }).then((m) => {
+  ready = call({ type: 'init', base: PY_BASE, harness: HARNESS, stepcheck: STEPCHECK }).then((m) => {
     if (!m.ok) { ready = null; worker?.terminate(); worker = null; throw new Error(m.error); }
   });
   return ready;
@@ -129,4 +136,36 @@ export async function runTests(src: string, func: string, kind: string, tests: u
   if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { results: [], timeout: true }; }
   if (!res.ok) return { results: [], compileError: res.error };
   return JSON.parse(res.out!) as RunResult;
+}
+
+export interface StepLine { status: 'ok' | 'miss' | 'flow'; what?: string }
+export interface StepReport {
+  step: number;
+  status: 'ok' | 'wrong' | 'empty' | 'error' | 'loop';
+  written: boolean;
+  lines: StepLine[];
+  why?: string[];
+  after?: number;
+  error?: { msg: string; line?: number };
+  loop?: { line?: number };
+}
+export interface StepCheck {
+  steps?: StepReport[];
+  commented?: boolean;
+  syntax?: { msg: string; line?: number; step: number };
+  fatal?: string;
+  error?: { msg: string; line?: number; step?: number };
+  loop?: { line?: number; step?: number };
+  timeout?: boolean;
+  loadError?: string;
+}
+
+/** Runs your code and the blueprint side by side and reports, step by step, whether your logic makes the same values. */
+export async function checkSteps(payload: { user: string; ref: string; fname: string; call: string; tests: unknown[]; postlude: string; nsteps: number }, timeoutMs = 6000): Promise<StepCheck> {
+  try { await warmUp(); } catch (e) { return { loadError: String((e as Error).message) }; }
+  const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
+  const res = await Promise.race([call({ type: 'steps', payload: JSON.stringify(payload) }), timer]);
+  if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { timeout: true }; }
+  if (!res.ok) return { fatal: res.error };
+  return JSON.parse(res.out!) as StepCheck;
 }
