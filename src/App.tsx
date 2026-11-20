@@ -1,7 +1,8 @@
-import { BarChart3, BookOpen, Blocks, Briefcase, Bug, Calculator, ClipboardCheck, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target } from 'lucide-react';
+import { BarChart3, BookOpen, Blocks, Briefcase, Bug, Calculator, ClipboardCheck, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BlueprintBuilder, { WeakIdioms } from './components/BlueprintBuilder';
 import BugHunter from './components/BugHunter';
+import Lab from './components/Lab';
 import WeakSpots from './components/WeakSpots';
 import { ClaudeKeyCard } from './components/AI';
 import Coach from './components/Coach';
@@ -35,6 +36,9 @@ const GROUPS: { name: string; items: NavItem[] }[] = [
     { id: 'pattern', label: 'Pattern finder', icon: Target, key: 'p' },
     { id: 'oa', label: 'Mock OA', icon: ClipboardCheck, key: 'a' },
     { id: 'math', label: 'Mental math', icon: Calculator, key: 'm' },
+  ] },
+  { name: 'Engineering skills', items: [
+    { id: 'lab', label: 'Build lab', icon: Wrench, key: 'k' },
   ] },
   { name: 'Interview prep', items: [
     { id: 'design', label: 'System design', icon: Network, key: 'd' },
@@ -190,6 +194,7 @@ export default function App() {
       case 'path': return <StudyPath progress={progress} solved={solved} syncedAt={ncCloud?.updatedAt ?? ncSyncedAt} cloud={cloud && !!ncCloud} pace={pace} setPace={setPace} toggleLocal={toggleLocal} open={open} />;
       case 'oa': return <MockOA />;
       case 'blueprint': return <BlueprintBuilder key={session} initial={focus} />;
+      case 'lab': return <Lab key={session} initial={focus} />;
       case 'roadmap': return <Roadmap progress={progress} solved={solved} unlockAll={unlockAll} setUnlockAll={setUnlockAll} open={open} onLearn={learn} />;
       case 'learn': return <Patterns key={`${lessonSel}-${session}`} progress={progress} solved={solved} initial={lessonSel} onLesson={onLesson} open={open} />;
       case 'dashboard': return <><PageTitle sub="Every attempt and every slip, across all modes.">Stats</PageTitle><div className="mb-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]"><WeakSpots progress={progress} open={open} onLearn={learn} limit={12} /><ClaudeKeyCard /></div><Dashboard progress={progress} solved={solved} go={go} reset={() => setProgress(emptyProgress())} /></>;

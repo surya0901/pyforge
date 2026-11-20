@@ -16,6 +16,7 @@ import { BLUEPRINTS } from '../data/blueprints';
 import { lessonForSlug } from '../lib/coverage';
 import { finderAnswers, finderSessionNow, finderSessionsDone } from './PatternDrill';
 import { nextProblems } from './StudyPath';
+import { labState, labTouchedToday, nextLabTask, taskStatus } from './Lab';
 
 interface FeedJob { id: string; company: string; title: string; location: string; url: string; posted?: string; ageDays?: number; tier: 'target' | 'big' | 'other' }
 interface DayState { manual: Record<string, boolean>; applied: string[]; picks?: string[]; lesson?: string; deck?: string }
@@ -86,6 +87,7 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const nextPick = pickProbs.find((p) => !probDone(p.slug));
   const nextBp = nextPick && BLUEPRINTS.find((b) => b.nc === nextPick.slug);
 
+  const labS = labState(); const labNext = nextLabTask(labS); const labStat = taskStatus(labNext, labS);
   const tasks = [
     { id: 'neetcode', mins: 80, title: `Solve today's ${pickProbs.length} NeetCode problems`, done: ncDone >= pickProbs.length || state.manual.neetcode, auto: true, progress: `${ncDone}/${pickProbs.length}`,
       detail: (
@@ -116,6 +118,8 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
       action: <button onClick={() => open('oa')} className="link">Open Mock OA</button> },
     { id: 'cards', mins: 12, title: `Flashcards: 15 cards from ${deckPick.name}`, detail: `${deckPick.why} Type or say each answer; it gets checked and shows what to study for anything you miss.`, done: cardsToday >= 15 || state.manual.cards, auto: true,
       action: <button onClick={() => open('cards', { deck: deckPick.id })} className="link">Start {deckPick.short}</button>, progress: `${Math.min(cardsToday, 15)}/15` },
+    { id: 'lab', mins: 40, title: `Build lab: ${labNext.n}. ${labNext.title}`, detail: labStat === 'built' ? 'Your repo passes the checks. Write the reflection to finish it.' : labStat === 'started' ? 'Keep going: push what you have, then hit Check now.' : `${labNext.why.split('. ')[0]}. Work on your laptop, push to swe-lab, then reflect.`, done: labTouchedToday() || state.manual.lab, auto: true,
+      action: <button onClick={() => open('lab', { focus: labNext.id })} className="link">{labStat === 'new' ? 'Start task' : 'Continue'}</button> },
     { id: 'story', mins: 10, title: 'Behavioral: one STAR story out loud', detail: 'Pick a question on the Companies page, answer it out loud in 2 minutes, then check it.', done: !!state.manual.story, auto: false,
       action: <button onClick={() => open('companies')} className="link">Pick a question</button> },
     { id: 'apply', mins: 100, title: `Submit ${APP_GOAL} quality applications`, detail: 'About 10 minutes each: read the posting, match 2 or 3 of its keywords in your resume bullets, apply, then message one engineer or recruiter there.', done: state.applied.length >= APP_GOAL || state.manual.apply, auto: true,
