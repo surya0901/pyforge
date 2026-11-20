@@ -4,13 +4,14 @@ import { DESIGN_PROBLEMS } from '../data/design';
 import { FLASHCARDS } from '../data/flashcards';
 import type { CompanyId, Mode, Progress } from '../types';
 import { mastery } from './storage';
+import { firstTryRate, practicalMastery, totalParts } from './practical';
 
 export interface AreaStat { area: Area; name: string; items: number; seen: number; attempts: number; accuracy: number; mastery: number }
 
 const DECK_AREA: Record<string, Area> = { behavioral: 'behavioral', fundamentals: 'fundamentals', 'cpp-systems': 'fundamentals', python: 'python', design: 'design', quant: 'quant', 'gpu-ai': 'gpu-ai' };
 
 export const AREA_MODE: Record<Area, Mode> = {
-  syntax: 'syntax', bugs: 'bug', patterns: 'pattern', math: 'math', design: 'design',
+  syntax: 'syntax', bugs: 'bug', patterns: 'pattern', practical: 'practical', design: 'design',
   behavioral: 'cards', fundamentals: 'cards', python: 'cards', quant: 'cards', 'gpu-ai': 'cards',
 };
 export const AREA_DECK: Partial<Record<Area, string>> = { behavioral: 'behavioral', fundamentals: 'fundamentals', python: 'python', quant: 'quant', 'gpu-ai': 'gpu-ai' };
@@ -25,19 +26,11 @@ function itemsByArea(): Record<Area, string[]> {
 }
 const BY_AREA = itemsByArea();
 
-/** Mental math: 40 correct in 2 minutes counts as full mastery. */
-export function mathMastery(p: Progress): { best: number; recent: number; mastery: number } {
-  const recent = p.math.slice(-5);
-  const best = p.math.reduce((m, r) => Math.max(m, r.score), 0);
-  const avg = recent.length ? recent.reduce((s, r) => s + r.score, 0) / recent.length : 0;
-  return { best, recent: avg, mastery: Math.min(1, avg / 40) };
-}
-
 export function areaStats(p: Progress): AreaStat[] {
   return (Object.keys(AREA_NAME) as Area[]).map((area) => {
-    if (area === 'math') {
-      const m = mathMastery(p);
-      return { area, name: AREA_NAME[area], items: 1, seen: p.math.length ? 1 : 0, attempts: p.math.length, accuracy: m.mastery, mastery: m.mastery };
+    if (area === 'practical') {
+      const ft = firstTryRate();
+      return { area, name: AREA_NAME[area], items: totalParts(), seen: ft.passed, attempts: ft.passed, accuracy: ft.passed ? ft.clean / ft.passed : 0, mastery: practicalMastery() };
     }
     const ids = BY_AREA[area];
     let attempts = 0, correct = 0, seen = 0, mast = 0;
@@ -94,7 +87,7 @@ export function buildPlan(p: Progress, targets: CompanyId[]): { plan: PlanItem[]
       : low
         ? `Accuracy is ${Math.round(s.accuracy * 100)}% over ${s.attempts} tries. This is a real gap, not just missing practice.`
         : `${s.seen} of ${s.items} seen, mastery ${Math.round(s.mastery * 100)}%. Build depth here next.`;
-    const minutes = s.area === 'design' ? 15 : s.area === 'math' ? 3 : 8;
+    const minutes = s.area === 'design' ? 15 : s.area === 'practical' ? 30 : 8;
     plan.push({ area: s.area, title: untouched ? `Start: ${s.name}` : `Practice: ${s.name}`, why, minutes, mode: AREA_MODE[s.area], deck: AREA_DECK[s.area] });
   }
 

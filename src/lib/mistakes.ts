@@ -6,10 +6,11 @@
 import { BLUEPRINTS, IDIOMS } from '../data/blueprints';
 import { FINDER_BY_ID } from '../data/finder';
 import { DECKS } from '../data/flashcards';
+import { CODEBASES, PRACTICAL } from '../data/practical';
 import type { Mode, Progress } from '../types';
 import { getLocal, setLocal } from './storage';
 
-export interface MistakeEntry { at: number; source: 'blueprint' | 'finder' | 'flashcards' | 'syntax' | 'bug' | 'oa'; kind: string; label: string; ref?: string }
+export interface MistakeEntry { at: number; source: 'blueprint' | 'finder' | 'flashcards' | 'syntax' | 'bug' | 'oa' | 'practical'; kind: string; label: string; ref?: string }
 const KEY = 'pyforge.mistakeLog';
 const HALF_LIFE = 7 * 86_400_000;
 
@@ -85,6 +86,10 @@ export function weakSpots(progress: Progress, mistakeLabels: Record<string, stri
       const id = m.kind.slice(8);
       const fp = FINDER_BY_ID[id];
       if (fp) add(m.kind, w, m.at, () => ({ title: `Spotting ${fp.name.toLowerCase()}`, fix: `${fp.name} fits when ${fp.fitsWhen}.`, area: 'Pattern recognition', action: fp.lesson ? { label: `Relearn the ${fp.name.toLowerCase()} lesson`, mode: 'learn', lesson: fp.lesson } : { label: 'Pattern finder', mode: 'pattern' } }));
+    } else if (m.kind.startsWith('practical:')) {
+      const id = m.kind.slice(10);
+      const title = PRACTICAL.find((x) => x.id === id)?.title ?? CODEBASES.find((x) => x.id === id)?.title;
+      if (title) add(m.kind, w, m.at, () => ({ title: `Missed cases in ${title.toLowerCase()}`, fix: `Last miss: ${m.label}. List edge cases before you type and trace one by hand before submitting.`, area: 'Practical rounds', action: { label: 'Back to that round', mode: 'practical', focus: id } }));
     } else if (m.kind.startsWith('card-')) {
       const d = DECKS.find((x) => `card-${x.id}` === m.kind);
       if (d) add(m.kind, w, m.at, () => ({ title: `${d.name} flashcards`, fix: 'Missed cards come back sooner. Say each answer out loud in your own words.', area: 'Interview knowledge', action: { label: `Review ${d.name}`, mode: 'cards', deck: d.id } }));

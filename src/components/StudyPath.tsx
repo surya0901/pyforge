@@ -129,7 +129,7 @@ export default function StudyPath({ progress, solved, syncedAt, cloud, pace, set
             NeetCode problem{pace > 1 ? 's' : ''} a day, you finish the 150 on
             <span className="hl font-semibold text-zinc-100">{finishAll ? finishAll.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : 'done already'}</span>.
           </div>
-          <p className="mt-2 text-sm text-zinc-500">Each day: solve on NeetCode (25–40 min), then 10 minutes of the drills below for what you just solved. Breaks: flashcards or mental math.</p>
+          <p className="mt-2 text-sm text-zinc-500">Each day: solve on NeetCode (25–40 min), then 10 minutes of the drills below for what you just solved. Breaks: flashcards or one bug hunter drill.</p>
         </Card>
       </section>
 

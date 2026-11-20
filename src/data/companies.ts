@@ -1,13 +1,13 @@
 import type { CompanyId } from '../types';
 
 /** Skill areas the coach tracks. Each exercise or card maps to one. */
-export type Area = 'syntax' | 'bugs' | 'patterns' | 'math' | 'design' | 'behavioral' | 'fundamentals' | 'python' | 'quant' | 'gpu-ai';
+export type Area = 'syntax' | 'bugs' | 'patterns' | 'practical' | 'design' | 'behavioral' | 'fundamentals' | 'python' | 'quant' | 'gpu-ai';
 
 export const AREA_NAME: Record<Area, string> = {
   syntax: 'Python syntax recall',
   bugs: 'Reading and debugging code',
   patterns: 'Pattern recognition',
-  math: 'Mental math speed',
+  practical: 'Practical coding rounds',
   design: 'System design',
   behavioral: 'Behavioral stories',
   fundamentals: 'CS fundamentals',
@@ -31,19 +31,19 @@ export const PLAYBOOKS: Playbook[] = [
   {
     id: 'citadel', tagline: 'Fast, correct algorithms and clean code, often in C++ or Python depending on the team.',
     loop: ['Online assessment (timed algorithm problems)', 'One or two technical phone screens', 'Final round: several back-to-back coding interviews, sometimes design or a resume deep dive'],
-    focus: ['Medium to hard LeetCode-style problems, done quickly and bug-free', 'Hash maps, heaps, graphs, DP', 'Language depth for the team\'s stack', 'Some teams ask probability or systems questions'],
+    focus: ['Medium to hard LeetCode-style problems, done quickly and bug-free', 'Hash maps, heaps, graphs, DP', 'Language depth for the team\'s stack', 'Practical class design: order books, LRU and LFU caches, a thread-safe counter', 'Some teams ask C++ or systems follow-ups'],
     values: 'Speed with precision. Edge cases are part of correctness.',
     tips: ['Practice finishing a medium in 20 minutes with tests walked through.', 'Know whether you are interviewing for Citadel (the fund) or Citadel Securities (market making); teams differ.'],
-    weights: { syntax: 0.2, bugs: 0.15, patterns: 0.25, math: 0.1, fundamentals: 0.1, quant: 0.1, behavioral: 0.05, python: 0.05 },
+    weights: { syntax: 0.15, bugs: 0.15, patterns: 0.25, practical: 0.2, fundamentals: 0.1, behavioral: 0.05, python: 0.1 },
     links: [{ label: 'Citadel Securities: new grad engineering interview process', url: 'https://www.citadelsecurities.com/?p=44130' }],
   },
   {
     id: 'hrt', tagline: 'Engineering-led trading. Expect algorithms plus real systems depth.',
     loop: ['Online assessment', 'Technical phone interviews (algorithms, sometimes systems)', 'Onsite with several technical rounds, often including OS, networking or C++ for core developer roles'],
-    focus: ['Algorithms and data structures', 'Operating systems, memory, caches, networking', 'Low-latency thinking: allocation, locality, lock-free queues', 'Some probability'],
+    focus: ['Algorithms and data structures', 'Operating systems, memory, caches, networking', 'Low-latency thinking: allocation, locality, lock-free queues', 'Testing your own code: their own guide says the sample tests are not comprehensive'],
     values: 'Technical depth and curiosity about how things really work.',
     tips: ['Be able to explain what your code does to the hardware.', 'Build a ring buffer and an LRU cache from scratch until it is automatic.'],
-    weights: { syntax: 0.15, bugs: 0.1, patterns: 0.2, fundamentals: 0.25, math: 0.05, quant: 0.1, python: 0.05, behavioral: 0.05, design: 0.05 },
+    weights: { syntax: 0.15, bugs: 0.1, patterns: 0.2, fundamentals: 0.25, practical: 0.1, python: 0.1, behavioral: 0.05, design: 0.05 },
     links: [{ label: 'HRT blog: how to prepare for the SWE interview', url: 'https://www.hudsonrivertrading.com/?p=10041' }],
   },
   {
@@ -52,7 +52,7 @@ export const PLAYBOOKS: Playbook[] = [
     focus: ['Clear reasoning out loud', 'Clean, correct, well-structured code', 'Graphs and algorithmic thinking', 'Handling changing requirements gracefully'],
     values: 'Intellectual honesty, collaboration, and taking feedback well. Jane Street states its SWE interviews do not test math or probability.',
     tips: ['Ask clarifying questions before coding.', 'Narrate trade-offs; welcome hints.', 'Write code that is easy to extend, since the next round may build on it.'],
-    weights: { patterns: 0.2, syntax: 0.15, bugs: 0.2, design: 0.05, behavioral: 0.15, python: 0.1, fundamentals: 0.05, quant: 0.1 },
+    weights: { patterns: 0.2, syntax: 0.1, bugs: 0.15, practical: 0.2, design: 0.05, behavioral: 0.15, python: 0.1, fundamentals: 0.05 },
     links: [{ label: 'Jane Street: preparing for a SWE interview', url: 'https://www.janestreet.com/preparing-for-a-software-engineering-interview/' }],
   },
   {
@@ -61,7 +61,7 @@ export const PLAYBOOKS: Playbook[] = [
     focus: ['Arrays, strings, trees, graphs, intervals, heaps', 'Finishing two problems with clean code', 'Working with AI tools on a production-like task', 'Behavioral signals: conflict, ambiguity, impact'],
     values: 'Move fast, focus on impact, be direct.',
     tips: ['Drill speed: 15–20 minutes per medium.', 'For the AI round, practice reading and verifying generated code (the Bug Hunter mode trains this).', 'Ask your recruiter which loop you have.'],
-    weights: { patterns: 0.25, syntax: 0.2, bugs: 0.2, behavioral: 0.15, design: 0.1, python: 0.05, 'gpu-ai': 0.05 },
+    weights: { patterns: 0.25, syntax: 0.15, bugs: 0.15, practical: 0.1, behavioral: 0.15, design: 0.1, python: 0.05, 'gpu-ai': 0.05 },
     links: [{ label: 'interviewing.io: Meta process and AI-assisted round', url: 'https://interviewing.io/meta-interview-questions' }],
   },
   {
@@ -70,7 +70,7 @@ export const PLAYBOOKS: Playbook[] = [
     focus: ['Graphs, trees, DP, binary search on answers', 'Explaining complexity and trade-offs', 'Reading unfamiliar code', 'Open-ended problems'],
     values: 'Googleyness: humility, collaboration, user focus, comfort with ambiguity.',
     tips: ['Talk while you think and state complexity unprompted.', 'Practice reading code you did not write.'],
-    weights: { patterns: 0.25, syntax: 0.15, bugs: 0.2, behavioral: 0.1, design: 0.1, fundamentals: 0.1, python: 0.05, 'gpu-ai': 0.05 },
+    weights: { patterns: 0.25, syntax: 0.1, bugs: 0.15, practical: 0.1, behavioral: 0.1, design: 0.1, fundamentals: 0.1, python: 0.05, 'gpu-ai': 0.05 },
     links: [{ label: 'Google: how we hire', url: 'https://www.google.com/about/careers/applications/how-we-hire/' }, { label: 'Exponent: Google AI-assisted coding interview', url: 'https://www.tryexponent.com/blog/google-ai-coding-interview' }],
   },
   {
@@ -79,7 +79,7 @@ export const PLAYBOOKS: Playbook[] = [
     focus: ['Writing real, runnable code with classes and state', 'Extending a solution as requirements change', 'Concurrency and API design basics', 'Genuine interest in AI and safety'],
     values: 'Mission alignment, ownership, and shipping correct code fast.',
     tips: ['Practice "build an in-memory X" problems (key-value store with TTL, rate limiter, LRU).', 'Have a real opinion on AI safety and a project that uses models.'],
-    weights: { syntax: 0.2, bugs: 0.15, patterns: 0.15, design: 0.15, behavioral: 0.15, python: 0.1, 'gpu-ai': 0.1 },
+    weights: { syntax: 0.1, bugs: 0.15, patterns: 0.15, practical: 0.15, design: 0.15, behavioral: 0.15, python: 0.05, 'gpu-ai': 0.1 },
     links: [{ label: 'Exponent: OpenAI new grad SWE guide', url: 'https://www.tryexponent.com/guides/openai-software-engineer-new-grad-interview' }, { label: 'OpenAI Charter', url: 'https://openai.com/charter/' }],
   },
   {
@@ -133,7 +133,7 @@ export const PLAYBOOKS: Playbook[] = [
     focus: ['LeetCode easy to medium, arrays, strings, linked lists, stacks', 'Some reports of hard OA problems, so do not skip DP and graphs', 'OOP, databases and OS basics', 'Explaining your resume projects in detail'],
     values: 'Client service, integrity, teamwork, excellence. Interviewers look for clear communication and ownership.',
     tips: ['Practice explaining a solution out loud in 2 minutes for the HireVue.', 'Know every project on your resume deeply, Superday interviewers dig in.', 'Have a crisp answer for why Goldman and why engineering at a bank.'],
-    weights: { patterns: 0.3, syntax: 0.15, bugs: 0.1, fundamentals: 0.15, behavioral: 0.2, design: 0.05, math: 0.05 },
+    weights: { patterns: 0.3, syntax: 0.15, bugs: 0.1, fundamentals: 0.15, behavioral: 0.2, design: 0.05, practical: 0.05 },
     links: [{ label: 'Goldman Sachs careers: students', url: 'https://www.goldmansachs.com/careers/students/' }],
   },
   {
@@ -151,6 +151,5 @@ export const RESOURCES: { label: string; url: string; note: string }[] = [
   { label: 'NeetCode 150', url: 'https://neetcode.io/practice', note: 'The best ordered problem list for these 18 patterns.' },
   { label: 'Tech Interview Handbook', url: 'https://www.techinterviewhandbook.org/', note: 'Free study plans, behavioral prep, resume tips.' },
   { label: 'System Design Primer', url: 'https://github.com/donnemartin/system-design-primer', note: 'Free, thorough, and enough for new grad design rounds.' },
-  { label: 'Zetamac arithmetic game', url: 'https://arithmetic.zetamac.com/', note: 'The classic quant mental math drill.' },
   { label: 'Jane Street puzzles', url: 'https://www.janestreet.com/puzzles/', note: 'Monthly puzzles for thinking practice.' },
 ];

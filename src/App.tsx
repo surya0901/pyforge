@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Blocks, Briefcase, Bug, Calculator, ClipboardCheck, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target, Wrench } from 'lucide-react';
+import { BarChart3, BookOpen, Blocks, Briefcase, Bug, Boxes, ClipboardCheck, Compass, GitBranch, GraduationCap, Keyboard, Layers, Map as MapIcon, Moon, Network, Sun, Target, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BlueprintBuilder, { WeakIdioms } from './components/BlueprintBuilder';
 import BugHunter from './components/BugHunter';
@@ -10,7 +10,7 @@ import Companies from './components/Companies';
 import Dashboard from './components/Dashboard';
 import DesignStudio from './components/DesignStudio';
 import Flashcards from './components/Flashcards';
-import MentalMath from './components/MentalMath';
+import Practical from './components/Practical';
 import PatternDrill from './components/PatternDrill';
 import Patterns from './components/Patterns';
 import Roadmap from './components/Roadmap';
@@ -23,7 +23,7 @@ import { getDB, pullProgress, pushProgress, watchNeetcode, type NeetcodeStatus }
 import { Kbd, PageTitle } from './components/ui';
 import { ALL, BUGS, PATTERN_DRILLS, SYNTAX } from './data';
 import { COMPANIES, PATTERNS } from './data/meta';
-import { buildQueue, emptyProgress, filterItems, getLocal, loadProgress, logMath, review, saveProgress, setLocal, streak, updateLesson } from './lib/storage';
+import { buildQueue, emptyProgress, filterItems, getLocal, loadProgress, review, saveProgress, setLocal, streak, updateLesson } from './lib/storage';
 import type { CompanyId, LessonState, Mode, PatternId, Progress } from './types';
 
 type NavItem = { id: Mode; label: string; icon: typeof Keyboard; key: string };
@@ -34,8 +34,8 @@ const GROUPS: { name: string; items: NavItem[] }[] = [
     { id: 'syntax', label: 'Syntax recall', icon: Keyboard, key: 's' },
     { id: 'bug', label: 'Bug hunter', icon: Bug, key: 'b' },
     { id: 'pattern', label: 'Pattern finder', icon: Target, key: 'p' },
+    { id: 'practical', label: 'Practical rounds', icon: Boxes, key: 'x' },
     { id: 'oa', label: 'Mock OA', icon: ClipboardCheck, key: 'a' },
-    { id: 'math', label: 'Mental math', icon: Calculator, key: 'm' },
   ] },
   { name: 'Engineering skills', items: [
     { id: 'lab', label: 'Build lab', icon: Wrench, key: 'k' },
@@ -128,7 +128,6 @@ export default function App() {
   const onResult = useCallback((id: string, q: 0 | 1 | 2 | 3, tags: string[]) => setProgress((p) => review(p, id, q, tags)), []);
   const onLesson = useCallback((id: string, patch: (s: LessonState) => LessonState) => setProgress((p) => updateLesson(p, id, patch)), []);
   const learn = (id?: string) => { setLessonSel(id); setMode('learn'); setSession((s) => s + 1); };
-  const onMath = useCallback((score: number) => setProgress((p) => logMath(p, score)), []);
 
   // Drills unlock as you learn patterns and solve NeetCode problems (see the Roadmap).
   const road = useMemo(() => roadmapStatus(progress, solved), [progress, solved]);
@@ -201,7 +200,7 @@ export default function App() {
       case 'companies': return <Companies key={company} progress={progress} solved={solved} initial={company} open={open} onLearn={learn} />;
       case 'design': return <DesignStudio key={company} progress={progress} company={company} onResult={onResult} />;
       case 'cards': return <Flashcards key={`${company}-${deck}-${session}`} progress={progress} company={company} initialDeck={deck} onResult={onResult} />;
-      case 'math': return <MentalMath progress={progress} onFinish={onMath} />;
+      case 'practical': return <Practical key={session} initial={focus} />;
       case 'reference': return <><PageTitle sub="Exact method names and their costs. Open it from anywhere with ? or Ctrl K.">Python reference</PageTitle><div className="max-w-4xl"><ReferenceContent autoFocus /></div></>;
       default: {
         const intro = DRILL_INTRO[mode]!;

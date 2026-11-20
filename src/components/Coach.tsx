@@ -36,7 +36,7 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
   const stats = useMemo(() => areaStats(progress), [progress]);
   const { plan, strengths, gaps, dueCards } = useMemo(() => buildPlan(progress, targets), [progress, targets]);
   const days = streak(progress.days);
-  const anyPractice = Object.keys(progress.cards).length > 0 || progress.math.length > 0;
+  const anyPractice = Object.keys(progress.cards).length > 0;
 
   const mistakes = Object.entries(progress.mistakes).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const prompt = claudePrompt(progress, targets.map((t) => COMPANY_NAME[t]), mistakes);
@@ -114,7 +114,7 @@ export default function Coach({ progress, open, solved, onLearn }: Props) {
                       {isStrong ? <span className="hl">{s.name}</span> : <span className={isGap ? 'pen' : ''}>{s.name}</span>}
                     </div>
                     <div className="text-xs text-zinc-500">
-                      {s.attempts === 0 ? 'Not started' : s.area === 'math' ? `${s.attempts} sprints` : `${s.seen} of ${s.items} seen, ${Math.round(s.accuracy * 100)}% accurate`}
+                      {s.attempts === 0 ? 'Not started' : s.area === 'practical' ? `${s.seen} parts passed, ${Math.round(s.accuracy * 100)}% clean on first submit` : `${s.seen} of ${s.items} seen, ${Math.round(s.accuracy * 100)}% accurate`}
                     </div>
                   </div>
                   <Bar value={s.mastery} color={isGap ? 'bg-rose-500' : isStrong ? 'bg-amber-500' : 'bg-violet-500'} />

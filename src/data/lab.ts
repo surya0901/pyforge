@@ -5,7 +5,7 @@
  * cloud, AI engineering (LLM APIs, RAG, agents, MCP, evals), and reading and checking code, AI written code included.
  */
 
-export type TrackId = 'core' | 'backend' | 'cloud' | 'ai' | 'craft';
+export type TrackId = 'core' | 'systems' | 'backend' | 'cloud' | 'ai' | 'craft';
 
 export interface LabCheck { label: string; path: RegExp }
 export interface LabTask {
@@ -28,6 +28,7 @@ export interface LabTask {
 
 export const TRACKS: Record<TrackId, { name: string; blurb: string }> = {
   core: { name: 'Engineering foundations', blurb: 'Git, the shell, tests and SQL: what every team assumes you know on day one.' },
+  systems: { name: 'Performance and systems', blurb: 'Concurrency, networking and profiling: the "under the hood" depth HRT, Citadel and Jane Street onsites probe.' },
   backend: { name: 'Backend services', blurb: 'Build and ship a real API with a database, the way most new grad work looks.' },
   cloud: { name: 'Cloud and DevOps', blurb: 'Containers, CI, deploying, infrastructure as code. Cloud skills are what new SWE hires are being hired for.' },
   ai: { name: 'AI engineering', blurb: 'LLM APIs, RAG, tool-calling agents, MCP and evals: building products on top of models.' },
@@ -110,6 +111,63 @@ export const LAB: LabTask[] = [
     interview: ['Find the second highest salary.', 'Your query is slow. How do you figure out why? (EXPLAIN)'],
   },
 
+  // ── Performance and systems (quant firms) ──
+  {
+    id: 'lab-concurrency', n: 22, track: 'systems', title: 'Threads, processes and the GIL, measured', mins: 75, folder: '22-concurrency', needs: ['lab-git'],
+    why: 'Quant onsites ask what the GIL really limits and how you would speed up CPU-bound versus I/O-bound work. Having measured it yourself turns a memorized answer into a real one.',
+    build: [
+      'Write 22-concurrency/bench.py: a CPU-bound job (count primes below 2,000,000 split into 4 chunks) run sequentially, with 4 threads, and with 4 processes (concurrent.futures). Time each.',
+      'Add an I/O-bound job (20 calls to time.sleep(0.2), standing in for network calls) run sequentially, with threads, and with asyncio.',
+      'Write 22-concurrency/race.py: 4 threads each add 1 to a shared counter 1,000,000 times with counter += 1. Show the wrong total, then fix it with threading.Lock and time both.',
+      'Put every timing in 22-concurrency/RESULTS.md with one paragraph explaining each result.',
+    ],
+    checks: [{ label: '22-concurrency/bench.py', path: f('22-concurrency', 'bench\\.py$') }, { label: '22-concurrency/race.py', path: f('22-concurrency', 'race\\.py$') }, { label: '22-concurrency/RESULTS.md', path: f('22-concurrency', 'results\\.md$') }],
+    learn: [
+      { label: 'concurrent.futures (Python docs)', url: 'https://docs.python.org/3/library/concurrent.futures.html' },
+      { label: 'asyncio (Python docs)', url: 'https://docs.python.org/3/library/asyncio.html' },
+      { label: 'PEP 703: making the GIL optional', url: 'https://peps.python.org/pep-0703/' },
+    ],
+    reflect: ['Why did threads not speed up the prime count but did speed up the sleeps?', 'Why is counter += 1 not atomic even with the GIL?', 'What did the lock cost you, and how would you cut that cost?'],
+    interview: ['What does the GIL actually prevent?', 'You need to process 10 GB of trades in Python on one machine. How do you use all the cores?', 'Design a thread-safe counter. What are the options?'],
+    resume: 'Benchmarked Python concurrency models (threads, processes, asyncio) on CPU and I/O bound workloads and documented GIL and locking trade-offs.',
+  },
+  {
+    id: 'lab-sockets', n: 23, track: 'systems', title: 'TCP vs UDP: build both and measure latency', mins: 75, folder: '23-sockets', needs: ['lab-git'],
+    why: 'TCP versus UDP is a favorite quant firm question because market data and order entry use different ones. Writing raw sockets shows you know what actually happens on the wire.',
+    build: [
+      'Write a TCP echo server and client in 23-sockets/ using the socket module. The client sends 10,000 small messages one at a time and records each round trip time.',
+      'Do the same with UDP. Note what you have to handle yourself (lost or reordered packets, message boundaries).',
+      'Run the TCP client with and without TCP_NODELAY and compare.',
+      'Write 23-sockets/RESULTS.md: median and 99th percentile round trip for each, and why they differ.',
+    ],
+    checks: [{ label: 'a TCP script', path: f('23-sockets', '.*tcp.*\\.py$') }, { label: 'a UDP script', path: f('23-sockets', '.*udp.*\\.py$') }, { label: '23-sockets/RESULTS.md', path: f('23-sockets', 'results\\.md$') }],
+    learn: [
+      { label: 'socket (Python docs)', url: 'https://docs.python.org/3/library/socket.html' },
+      { label: 'Beej\'s guide to network programming', url: 'https://beej.us/guide/bgnet/' },
+    ],
+    reflect: ['What does TCP give you that you had to give up with UDP?', 'What did TCP_NODELAY change and why?', 'Why is the 99th percentile more important than the average for a trading system?'],
+    interview: ['Why would market data use UDP multicast but order entry use TCP?', 'Walk me through the TCP handshake.', 'Your latency has rare huge spikes. Where do you look?'],
+    resume: 'Built TCP and UDP echo services with raw sockets and measured tail latency, including the effect of Nagle\'s algorithm.',
+  },
+  {
+    id: 'lab-matching', n: 24, track: 'systems', title: 'Order matching engine: test it, profile it, make it fast', mins: 180, folder: '24-matching-engine', needs: ['lab-tests'],
+    why: 'An order book is the most reported Citadel coding round and the classic quant resume project. Testing, profiling and optimizing one shows exactly the habits HRT says it grades: correct, idiomatic code and good use of resources.',
+    build: [
+      'Start from your Practical rounds order book (add, cancel, best bid and ask, price-time matching) as 24-matching-engine/book.py.',
+      'Write pytest tests in 24-matching-engine/test_book.py for every edge case: empty book, partial fills, cancel after fill, many orders at one price.',
+      'Write bench.py that replays 1,000,000 random orders and cancels and prints orders per second. Profile it with cProfile.',
+      'Make it at least 2x faster (O(1) cancel with a lazy flag or linked list, __slots__ on Order, fewer allocations). Record before and after numbers and the profile in PERF.md.',
+    ],
+    checks: [{ label: '24-matching-engine/book.py', path: f('24-matching-engine', 'book\\.py$') }, { label: 'pytest tests', path: f('24-matching-engine', '(.*/)?test_.*\\.py$') }, { label: 'bench.py', path: f('24-matching-engine', '(.*/)?bench\\.py$') }, { label: 'PERF.md', path: f('24-matching-engine', 'perf\\.md$') }],
+    learn: [
+      { label: 'The Python profilers (docs)', url: 'https://docs.python.org/3/library/profile.html' },
+      { label: 'Python time complexity (wiki)', url: 'https://wiki.python.org/moin/TimeComplexity' },
+      { label: 'HRT: how to prepare for the SWE interview', url: 'https://www.hudsonrivertrading.com/?p=10041' },
+    ],
+    reflect: ['What did the profile show was slowest, and were you surprised?', 'Which change gave the biggest speedup, and why?', 'What would you change to rewrite this in C++?'],
+    interview: ['Design an order book. What structure holds each side and why?', 'How do you make cancel O(1)?', 'How would you test a matching engine so you trust it with real money?'],
+    resume: 'Built a price-time priority order matching engine in Python with full pytest coverage, then profiled and optimized it to over 2x throughput on 1M orders.',
+  },
   // ── Backend ──
   {
     id: 'lab-api', n: 5, track: 'backend', title: 'Build a REST API with FastAPI', mins: 90, folder: '05-api', needs: ['lab-tests'],

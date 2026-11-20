@@ -16,6 +16,7 @@ import { BLUEPRINTS } from '../data/blueprints';
 import { lessonForSlug } from '../lib/coverage';
 import { finderAnswers, finderSessionNow, finderSessionsDone } from './PatternDrill';
 import { nextProblems } from './StudyPath';
+import { nextRound, practicalPartsToday } from '../lib/practical';
 import { labState, labTouchedToday, nextLabTask, taskStatus } from './Lab';
 
 interface FeedJob { id: string; company: string; title: string; location: string; url: string; posted?: string; ageDays?: number; tier: 'target' | 'big' | 'other' }
@@ -71,6 +72,9 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const finderSessionToday = finderSessionsDone().some((t) => t >= start.getTime()) || finderCountToday(progress, start.getTime()) >= 10;
   const sessionNow = finderSessionNow();
   const cardsToday = seenToday((id) => id.startsWith('fc-'));
+  const bugsToday = seenToday((id) => id.startsWith('bug-'));
+  const pracToday = practicalPartsToday();
+  const pracNext = nextRound();
   const oaToday = getLocal<{ at: number }[]>('pyforge.oa.history', []).filter((h) => h.at >= start.getTime()).length;
   const lesson = LESSONS.find((l) => l.id === lessonId)!;
   const lessonChecks = lesson.check.filter((_, i) => progress.lessons?.[lesson.id]?.checks?.[i]).length;
@@ -116,6 +120,10 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
       action: <button onClick={() => open('pattern')} className="link">{sessionNow && sessionNow.pos > 0 && !finderSessionToday ? 'Continue' : 'Start'}</button>, progress: finderSessionToday ? '1/1 session' : `${sessionNow?.pos ?? 0}/${sessionNow?.len ?? 10}` },
     { id: 'oa', mins: 25, title: 'Mock OA: one timed set', detail: 'The 20 minute debugging section on weekdays, a full 2 problem OA on weekends.', done: oaToday > 0 || state.manual.oa, auto: true,
       action: <button onClick={() => open('oa')} className="link">Open Mock OA</button> },
+    { id: 'bugs', mins: 12, title: 'Bug hunter: 3 programs', detail: 'Quant firms grade debugging and edge cases harder than most. Read each program like a reviewer, flag every broken line, aim for under 4 minutes each.', done: bugsToday >= 3 || state.manual.bugs, auto: true,
+      action: <button onClick={() => open('bug')} className="link">Start</button>, progress: `${Math.min(bugsToday, 3)}/3` },
+    { id: 'practical', mins: 30, title: `Practical round: ${pracNext.title}, ${pracNext.kind === 'codebase' ? 'step' : 'part'} ${pracNext.partIndex + 1}`, detail: pracNext.kind === 'codebase' ? 'An unfamiliar multi-file project: fix, extend, then speed up, the way Meta and Google now run one coding round.' : 'A class design problem that grows part by part. Write your approach and edge cases first, then try to pass on the first submit.', done: pracToday >= 1 || state.manual.practical, auto: true,
+      action: <button onClick={() => open('practical', { focus: pracNext.id })} className="link">{pracNext.partIndex > 0 ? 'Continue' : 'Start'}</button>, progress: `${Math.min(pracToday, 1)}/1` },
     { id: 'cards', mins: 12, title: `Flashcards: 15 cards from ${deckPick.name}`, detail: `${deckPick.why} Type or say each answer; it gets checked and shows what to study for anything you miss.`, done: cardsToday >= 15 || state.manual.cards, auto: true,
       action: <button onClick={() => open('cards', { deck: deckPick.id })} className="link">Start {deckPick.short}</button>, progress: `${Math.min(cardsToday, 15)}/15` },
     { id: 'lab', mins: 40, title: `Build lab: ${labNext.n}. ${labNext.title}`, detail: labStat === 'built' ? 'Your repo passes the checks. Write the reflection to finish it.' : labStat === 'started' ? 'Keep going: push what you have, then hit Check now.' : `${labNext.why.split('. ')[0]}. Work on your laptop, push to swe-lab, then reflect.`, done: labTouchedToday() || state.manual.lab, auto: true,

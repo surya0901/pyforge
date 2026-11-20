@@ -83,7 +83,7 @@ export interface PatternExercise extends Base {
 }
 
 export type Exercise = SyntaxExercise | BugExercise | PatternExercise;
-export type Mode = 'lab' | 'blueprint' | 'coach' | 'roadmap' | 'oa' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'math' | 'cards' | 'design' | 'companies' | 'reference';
+export type Mode = 'practical' | 'lab' | 'blueprint' | 'coach' | 'roadmap' | 'oa' | 'path' | 'learn' | 'dashboard' | 'syntax' | 'bug' | 'pattern' | 'cards' | 'design' | 'companies' | 'reference';
 
 export interface CardState {
   reps: number;
