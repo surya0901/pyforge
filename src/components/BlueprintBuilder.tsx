@@ -418,7 +418,7 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
         <span className={`rounded-full px-2 py-0.5 text-xs ${blind ? 'bg-emerald-500/10 text-emerald-300' : 'bg-violet-500/10 text-violet-200'}`}>{blind ? 'Blind pass: no blueprint' : own ? 'Your own plan' : 'With blueprint'}</span>
       </div>
       <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-        <div className="min-w-0 space-y-4 lg:h-full lg:overflow-y-auto lg:pb-6 lg:pr-2">
+        <div className="min-w-0 space-y-4 lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pb-6 lg:pr-2">
           <Card className="p-4">
             <p className="text-[15px] text-zinc-200">{p.statement}</p>
             <p className="mt-2 font-mono text-[13px] text-zinc-400">{p.example}</p>
@@ -468,7 +468,7 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
           )}
         </div>
 
-        <div className="min-w-0 lg:h-full lg:overflow-y-auto lg:pb-6 lg:pr-1">
+        <div className="min-w-0 lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pb-6 lg:pr-1">
           <CodeEditor value={code} onChange={(v) => { setCode(v); setPasteNote(false); }} onRun={run}
             errorLine={check?.syntax?.line ?? r?.line ?? r?.results.find((t) => t.line)?.line} minRows={18}
             onPaste={(e) => { e.preventDefault(); setPasteNote(true); }} />

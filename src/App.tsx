@@ -233,7 +233,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/85 px-3 py-5 backdrop-blur md:flex">
+      <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col overflow-y-auto border-r border-zinc-800 bg-zinc-900/85 px-3 py-5 backdrop-blur md:flex">
         <button onClick={() => nav('coach')} className="mb-7 px-2 text-left">
           <div className="text-[26px] font-extrabold leading-none tracking-[-0.04em] text-zinc-100">py<span className="text-violet-400">forge</span></div>
           <div className="mt-1 text-sm text-zinc-500">new grad interview gym</div>
