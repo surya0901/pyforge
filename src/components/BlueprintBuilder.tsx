@@ -409,16 +409,16 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
   const nextP = otherBp ?? BLUEPRINTS[(BLUEPRINTS.indexOf(p) + 1) % BLUEPRINTS.length];
 
   return (
-    <div className="max-w-6xl">
-      <button onClick={onBack} className="mb-3 flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-100"><ChevronLeft size={15} />All blueprints</button>
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+    // On wide screens the workbench fills the window: left and right scroll on their own.
+    <div className="flex w-full flex-col lg:h-[calc(100vh-4rem)]">
+      <button onClick={onBack} className="mb-3 flex shrink-0 items-center gap-1 text-sm text-zinc-400 hover:text-zinc-100"><ChevronLeft size={15} />All blueprints</button>
+      <div className="mb-4 flex shrink-0 flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100">{p.title}</h2>
         <span className="text-sm text-zinc-500">{lessonName(p.pattern)} · {p.difficulty}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs ${blind ? 'bg-emerald-500/10 text-emerald-300' : 'bg-violet-500/10 text-violet-200'}`}>{blind ? 'Blind pass: no blueprint' : own ? 'Your own plan' : 'With blueprint'}</span>
       </div>
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
-        {/* The steps scroll on their own so the editor stays in view. */}
-        <div className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-2">
+      <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+        <div className="min-w-0 space-y-4 lg:h-full lg:overflow-y-auto lg:pb-6 lg:pr-2">
           <Card className="p-4">
             <p className="text-[15px] text-zinc-200">{p.statement}</p>
             <p className="mt-2 font-mono text-[13px] text-zinc-400">{p.example}</p>
@@ -468,7 +468,7 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
           )}
         </div>
 
-        <div className="lg:sticky lg:top-4">
+        <div className="min-w-0 lg:h-full lg:overflow-y-auto lg:pb-6 lg:pr-1">
           <CodeEditor value={code} onChange={(v) => { setCode(v); setPasteNote(false); }} onRun={run}
             errorLine={check?.syntax?.line ?? r?.line ?? r?.results.find((t) => t.line)?.line} minRows={18}
             onPaste={(e) => { e.preventDefault(); setPasteNote(true); }} />

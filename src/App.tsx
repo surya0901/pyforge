@@ -289,7 +289,7 @@ export default function App() {
             </div>
           )}
         </header>
-        <div className="mx-auto max-w-[1180px] px-6 py-8">{body()}</div>
+        <div className={`mx-auto px-6 py-8 ${mode === 'blueprint' ? 'max-w-[1600px]' : 'max-w-[1180px]'}`}>{body()}</div>
       </main>
 
       <ReferenceDrawer open={drawer} onClose={() => setDrawer(false)} />
