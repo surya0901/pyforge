@@ -554,7 +554,7 @@ function StepCard({ i, s, p, level, onHint, rep, shown, isCurrent, syntax, code,
     try {
       const out = await sample(prompt, { onText: ({ text }: { text: string }) => setAi(text), cache: false });
       setAi(out.text);
-    } catch { setAi('Could not reach Claude right now. Try again in a minute.'); }
+    } catch { setAi('Could not reach the AI right now. Try again in a minute.'); }
     setAiBusy(false);
   }
 
@@ -638,7 +638,7 @@ function StepCard({ i, s, p, level, onHint, rep, shown, isCurrent, syntax, code,
                   </button>
                 )}
                 {sample && (shown === 'wrong' || shown === 'syntax' || shown === 'error') && !blocked && (
-                  <button onClick={askClaude} disabled={aiBusy} className="flex items-center gap-1 text-sm text-violet-300 hover:underline"><Sparkles size={14} />{aiBusy ? 'Asking…' : 'Ask Claude to explain'}</button>
+                  <button onClick={askClaude} disabled={aiBusy} className="flex items-center gap-1 text-sm text-violet-300 hover:underline"><Sparkles size={14} />{aiBusy ? 'Asking…' : `Ask ${aiName() ?? 'AI'} to explain`}</button>
                 )}
               </div>
             )}
