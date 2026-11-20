@@ -568,6 +568,7 @@ def _defs(code, smap, params):
     except SyntaxError:
         return out
     found = []
+    methods = {id(b) for n in _ast2.walk(tree) if isinstance(n, _ast2.ClassDef) for b in n.body if isinstance(b, _ast2.FunctionDef)}
     for node in _ast2.walk(tree):
         names = []
         if isinstance(node, (_ast2.Assign, _ast2.AugAssign, _ast2.AnnAssign)):
@@ -577,7 +578,8 @@ def _defs(code, smap, params):
         elif isinstance(node, (_ast2.For, _ast2.AsyncFor)):
             names += [n.id for n in _ast2.walk(node.target) if isinstance(n, _ast2.Name)]
         elif isinstance(node, _ast2.FunctionDef) and node.lineno > 1:
-            names += [node.name] + [a.arg for a in node.args.args]
+            # a method's name is part of the class's interface: never rename it
+            names += ([] if id(node) in methods else [node.name]) + [a.arg for a in node.args.args if a.arg != "self"]
         elif isinstance(node, _ast2.Import):
             names += [(a.asname or a.name).split(".")[0] for a in node.names]
         elif isinstance(node, _ast2.ImportFrom):

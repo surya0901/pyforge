@@ -8,7 +8,7 @@ src/data/blueprints.ts.
 
 Run:  python3 scripts/blueprints.py
 """
-import copy, json, pathlib, textwrap
+import copy, json, pathlib, re, textwrap
 
 # Idioms are the reusable Python phrases a step needs. When you open a hint for
 # a step, the app counts its idioms so you can drill the ones you keep needing.
@@ -40,11 +40,11 @@ IDIOMS = {
 }
 
 P = []
-def B(id, title, nc, difficulty, pattern, statement, example, signature, steps, tests, postlude='', check=None):
+def B(id, title, nc, difficulty, pattern, statement, example, signature, steps, tests, postlude='', check=None, want=None):
     """steps: list of (text, clue, template, code, idioms). code/template are function-body lines (no leading indent)."""
     P.append(dict(id=id, title=title, nc=nc, difficulty=difficulty, pattern=pattern, statement=statement, example=example,
                   signature=signature, steps=[dict(text=t, clue=c, template=tm.strip('\n'), code=cd.strip('\n'), idioms=i) for t, c, tm, cd, i in steps],
-                  tests=tests, postlude=textwrap.dedent(postlude).strip('\n'), check=check))
+                  tests=tests, postlude=textwrap.dedent(postlude).strip('\n'), check=check, want=want))
 
 # ───────────────────────── Arrays & Hashing ─────────────────────────
 B('bp-contains-dup', 'Contains Duplicate', 'duplicate-integer', 'easy', 'hashing',
@@ -366,6 +366,351 @@ def _check(nums):
     return sorted(sorted(s) for s in subsets(nums))
 ''', check='_check')
 
+
+# ───────────────────────── More NeetCode 150, in roadmap order ─────────────────────────
+B('bp-encode-decode', 'Encode and Decode Strings', 'string-encode-and-decode', 'medium', 'hashing',
+  'Write encode (a list of strings into one string) and decode (back again). Strings can contain any character, including "#". decode(encode(strs)) must return the original list.', '["neet","code","#love"] round trips unchanged', 'class Codec:', [
+  ('encode: put each word\'s length and a "#" in front of it, and join everything', 'f"{len(w)}#{w}" builds one piece. "".join(...) glues the pieces with nothing between.', 'def encode(self, strs):\n    return "".join(f"{____(w)}#{w}" for w in strs)', 'def encode(self, strs):\n    return "".join(f"{len(w)}#{w}" for w in strs)', ['str-methods']),
+  ('decode: start a result list and a position at 0', 'A second method.', 'def decode(self, s):\n    res, i = [], ____', 'def decode(self, s):\n    res, i = [], 0', ['multi-assign']),
+  ('Read digits up to the next "#" to get the length', 'Move j forward until s[j] is "#". The length is int(s[i:j]).', '    while i < len(s):\n        j = i\n        while s[j] != "____":\n            j += 1\n        length = int(s[i:j])', '    while i < len(s):\n        j = i\n        while s[j] != "#":\n            j += 1\n        length = int(s[i:j])', ['slicing']),
+  ('Slice out exactly that many characters, jump past them, and return the list', 'The word starts right after the "#": s[j + 1 : j + 1 + length].', '        res.append(s[j + 1 : j + 1 + ____])\n        i = j + 1 + length\n    return res', '        res.append(s[j + 1 : j + 1 + length])\n        i = j + 1 + length\n    return res', ['slicing']),
+], [[['neet', 'code', 'love', 'you']], [['we', 'say', ':', 'yes', '#4#']], [[]], [['']]],
+  postlude="""
+def _check(strs):
+    c = Codec()
+    return c.decode(c.encode(strs))
+""", check='_check', want=[['neet', 'code', 'love', 'you'], ['we', 'say', ':', 'yes', '#4#'], [], ['']])
+
+B('bp-trapping-rain', 'Trapping Rain Water', 'trapping-rain-water', 'hard', 'two-pointers',
+  'Given bar heights, return how much rain water is trapped between them.', '[0,1,0,2,1,0,1,3,2,1,2,1] → 6', 'def trap(height):', [
+  ('Two pointers at the ends, the tallest bar seen from each side, and the total', 'Start left_max and right_max at the end bars.', 'if not height:\n    return 0\nl, r = 0, len(height) - ____\nleft_max, right_max = height[l], height[r]\nwater = 0', 'if not height:\n    return 0\nl, r = 0, len(height) - 1\nleft_max, right_max = height[l], height[r]\nwater = 0', ['two-pointers']),
+  ('Loop until the pointers meet, always moving the side with the smaller max', 'The smaller side is the one that limits the water.', 'while l < r:\n    if left_max < ____:', 'while l < r:\n    if left_max < right_max:', ['two-pointers']),
+  ('Left side: step in, update its max, and add the water above this bar', 'Water above a bar is max on that side minus the bar.', '        l += 1\n        left_max = max(left_max, height[l])\n        water += left_max - height[____]', '        l += 1\n        left_max = max(left_max, height[l])\n        water += left_max - height[l]', ['max-min']),
+  ('Otherwise do the same from the right, and return the total', 'Mirror image: r -= 1.', '    else:\n        r -= 1\n        right_max = max(right_max, height[r])\n        water += right_max - height[____]\nreturn water', '    else:\n        r -= 1\n        right_max = max(right_max, height[r])\n        water += right_max - height[r]\nreturn water', ['max-min']),
+], [[[0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]], [[4, 2, 0, 3, 2, 5]], [[]], [[3]]], want=[6, 9, 0, 0])
+
+B('bp-char-replacement', 'Longest Repeating Character Replacement', 'longest-repeating-substring-with-replacement', 'medium', 'sliding-window',
+  'You may replace at most k characters. Return the length of the longest substring that can become one repeated letter.', 's = "AABABBA", k = 1 → 4', 'def character_replacement(s, k):', [
+  ('A dict of letter counts in the window, the left edge, the top count, and the best', 'Four setup values.', 'count = {}\nl = 0\ntop = 0\nbest = ____', 'count = {}\nl = 0\ntop = 0\nbest = 0', ['dict-get']),
+  ('Grow the window to the right and count the new letter', 'count.get(ch, 0) + 1, then track the most common letter count.', 'for r in range(len(s)):\n    count[s[r]] = count.____(s[r], 0) + 1\n    top = max(top, count[s[r]])', 'for r in range(len(s)):\n    count[s[r]] = count.get(s[r], 0) + 1\n    top = max(top, count[s[r]])', ['dict-get', 'max-min']),
+  ('If the letters to replace (window size minus top) exceed k, drop the left letter', 'Window size is r - l + 1. One step left is enough, so use if, not while.', '    if (r - l + 1) - top > ____:\n        count[s[l]] -= 1\n        l += 1', '    if (r - l + 1) - top > k:\n        count[s[l]] -= 1\n        l += 1', []),
+  ('Record the window size, and return the best', 'max() again.', '    best = max(best, r - l + ____)\nreturn best', '    best = max(best, r - l + 1)\nreturn best', ['max-min']),
+], [['ABAB', 2], ['AABABBA', 1], ['A', 0], ['AAAA', 0]], want=[4, 4, 1, 4])
+
+B('bp-permutation-string', 'Permutation in String', 'permutation-string', 'medium', 'sliding-window',
+  'Return True if some window of s2 is a rearrangement of s1.', 's1 = "ab", s2 = "eidbaooo" → True', 'def check_inclusion(s1, s2):', [
+  ('If s1 is longer it can never fit; otherwise count the letters of s1', 'Counter(s1) counts every letter at once.', 'from collections import Counter\nif len(s1) > len(s2):\n    return False\nneed = ____(s1)', 'from collections import Counter\nif len(s1) > len(s2):\n    return False\nneed = Counter(s1)', ['counter']),
+  ('Count the first window of s2, the same length as s1', 'Slice s2[:len(s1)].', 'window = Counter(s2[:____(s1)])\nif window == need:\n    return True', 'window = Counter(s2[:len(s1)])\nif window == need:\n    return True', ['counter', 'slicing']),
+  ('Slide one step at a time: add the new letter on the right, remove the old one on the left', 'The letter leaving is s2[i - len(s1)].', 'for i in range(len(s1), len(s2)):\n    window[s2[i]] += 1\n    window[s2[i - ____(s1)]] -= 1', 'for i in range(len(s1), len(s2)):\n    window[s2[i]] += 1\n    window[s2[i - len(s1)]] -= 1', []),
+  ('Compare after each step (drop zero counts first), and return False at the end', '+Counter() removes zero counts, so the comparison is fair.', '    if +window == ____:\n        return True\nreturn False', '    if +window == need:\n        return True\nreturn False', ['counter']),
+], [['ab', 'eidbaooo'], ['ab', 'eidboaoo'], ['adc', 'dcda'], ['abc', 'ab']], want=[True, False, True, False])
+
+B('bp-search-2d', 'Search a 2D Matrix', 'search-2d-matrix', 'medium', 'binary-search',
+  'Each row is sorted, and each row starts after the previous one ends. Return True if target is in the matrix, in O(log(m·n)).', 'target 3 in [[1,3,5,7],[10,11,16,20],[23,30,34,60]] → True', 'def search_matrix(matrix, target):', [
+  ('Treat the whole matrix as one sorted list of rows times cols cells', 'lo = 0, hi = rows * cols - 1.', 'rows, cols = len(matrix), len(matrix[0])\nlo, hi = 0, rows * ____ - 1', 'rows, cols = len(matrix), len(matrix[0])\nlo, hi = 0, rows * cols - 1', []),
+  ('Binary search, turning the middle index back into a row and column', 'Row is mid // cols, column is mid % cols.', 'while lo <= hi:\n    mid = (lo + hi) // 2\n    val = matrix[mid // ____][mid % cols]', 'while lo <= hi:\n    mid = (lo + hi) // 2\n    val = matrix[mid // cols][mid % cols]', ['floor-div']),
+  ('Found it, or throw away the half that can\'t hold it', 'Too small: lo = mid + 1. Too big: hi = mid - 1.', '    if val == target:\n        return True\n    if val < target:\n        lo = mid + ____\n    else:\n        hi = mid - 1', '    if val == target:\n        return True\n    if val < target:\n        lo = mid + 1\n    else:\n        hi = mid - 1', []),
+  ('Not found after the loop', 'Return after the loop.', 'return ____', 'return False', []),
+], [[[[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 3], [[[1, 3, 5, 7], [10, 11, 16, 20], [23, 30, 34, 60]], 13], [[[1]], 1], [[[1, 3]], 3]], want=[True, False, True, True])
+
+B('bp-find-min-rotated', 'Find Minimum in Rotated Sorted Array', 'find-minimum-in-rotated-sorted-array', 'medium', 'binary-search',
+  'A sorted list of distinct numbers was rotated. Return the smallest value in O(log N).', '[3, 4, 5, 1, 2] → 1', 'def find_min(nums):', [
+  ('Search the whole list', 'lo and hi at both ends.', 'lo, hi = 0, len(nums) - ____', 'lo, hi = 0, len(nums) - 1', []),
+  ('Loop while lo is before hi and look at the middle', 'lo < hi, because you stop when one index is left.', 'while lo ____ hi:\n    mid = (lo + hi) // 2', 'while lo < hi:\n    mid = (lo + hi) // 2', ['floor-div']),
+  ('If the middle is bigger than the right end, the drop (the minimum) is to the right; otherwise it is at mid or left', 'Compare with nums[hi]. Keep mid in the range in the second case: hi = mid.', '    if nums[mid] > nums[____]:\n        lo = mid + 1\n    else:\n        hi = mid', '    if nums[mid] > nums[hi]:\n        lo = mid + 1\n    else:\n        hi = mid', []),
+  ('lo now points at the minimum', 'Return the value, not the index.', 'return nums[____]', 'return nums[lo]', []),
+], [[[3, 4, 5, 1, 2]], [[4, 5, 6, 7, 0, 1, 2]], [[11, 13, 15, 17]], [[2, 1]]], want=[1, 0, 11, 1])
+
+B('bp-search-rotated', 'Search in Rotated Sorted Array', 'find-target-in-rotated-sorted-array', 'medium', 'binary-search',
+  'A sorted list of distinct numbers was rotated. Return the index of target or -1, in O(log N).', '[4,5,6,7,0,1,2], target 0 → 4', 'def search_rotated(nums, target):', [
+  ('Standard binary search setup and loop', 'Inclusive hi, so lo <= hi.', 'lo, hi = 0, len(nums) - 1\nwhile lo <= hi:\n    mid = (lo + hi) // ____\n    if nums[mid] == target:\n        return mid', 'lo, hi = 0, len(nums) - 1\nwhile lo <= hi:\n    mid = (lo + hi) // 2\n    if nums[mid] == target:\n        return mid', ['floor-div']),
+  ('If the left half is sorted, check whether the target lies inside it', 'Left half sorted when nums[lo] <= nums[mid]. Target inside means nums[lo] <= target < nums[mid].', '    if nums[lo] <= nums[mid]:\n        if nums[lo] <= target < nums[____]:\n            hi = mid - 1\n        else:\n            lo = mid + 1', '    if nums[lo] <= nums[mid]:\n        if nums[lo] <= target < nums[mid]:\n            hi = mid - 1\n        else:\n            lo = mid + 1', []),
+  ('Otherwise the right half is sorted: check whether the target lies inside it', 'Inside means nums[mid] < target <= nums[hi].', '    else:\n        if nums[mid] < target <= nums[____]:\n            lo = mid + 1\n        else:\n            hi = mid - 1', '    else:\n        if nums[mid] < target <= nums[hi]:\n            lo = mid + 1\n        else:\n            hi = mid - 1', []),
+  ('Not found', 'After the loop.', 'return ____', 'return -1', []),
+], [[[4, 5, 6, 7, 0, 1, 2], 0], [[4, 5, 6, 7, 0, 1, 2], 3], [[1], 0], [[3, 1], 1]], want=[4, -1, -1, 1])
+
+B('bp-time-map', 'Time Based Key-Value Store', 'time-based-key-value-store', 'medium', 'binary-search',
+  'Build a TimeMap: set(key, value, timestamp) stores a value; get(key, timestamp) returns the value with the largest timestamp <= the given one, or "". Timestamps for a key always increase.', 'set("foo","bar",1); get("foo",3) → "bar"', 'class TimeMap:', [
+  ('In __init__, make a dict from key to a list of [timestamp, value] pairs', 'self.store = {}', 'def __init__(self):\n    self.store = ____', 'def __init__(self):\n    self.store = {}', []),
+  ('set appends the pair to that key\'s list', 'setdefault(key, []) creates the list the first time.', 'def set(self, key, value, timestamp):\n    self.store.____(key, []).append([timestamp, value])', 'def set(self, key, value, timestamp):\n    self.store.setdefault(key, []).append([timestamp, value])', ['dict-get']),
+  ('get binary searches that list for the last timestamp <= the query', 'Pairs are in timestamp order. When pairs[mid][0] <= timestamp, it is a candidate: save it and search right.', 'def get(self, key, timestamp):\n    pairs = self.store.get(key, [])\n    res, lo, hi = "", 0, len(pairs) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if pairs[mid][0] <= ____:\n            res = pairs[mid][1]\n            lo = mid + 1\n        else:\n            hi = mid - 1', 'def get(self, key, timestamp):\n    pairs = self.store.get(key, [])\n    res, lo, hi = "", 0, len(pairs) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if pairs[mid][0] <= timestamp:\n            res = pairs[mid][1]\n            lo = mid + 1\n        else:\n            hi = mid - 1', ['floor-div']),
+  ('Return the best candidate (or "" if none)', 'res started as "".', '    return ____', '    return res', []),
+], [[['set', 'get', 'get', 'set', 'get', 'get'], [['foo', 'bar', 1], ['foo', 1], ['foo', 3], ['foo', 'bar2', 4], ['foo', 4], ['foo', 5]]], [['get'], [['x', 1]]], [['set', 'get'], [['a', 'b', 5], ['a', 4]]]],
+  postlude="""
+def _check(ops, args):
+    tm, out = TimeMap(), []
+    for op, a in zip(ops, args):
+        out.append(getattr(tm, op)(*a))
+    return out
+""", check='_check', want=[[None, 'bar', 'bar', None, 'bar2', 'bar2'], [''], [None, '']])
+
+B('bp-merge-two-lists', 'Merge Two Sorted Lists', 'merge-two-sorted-linked-lists', 'easy', 'reverse-ll',
+  'Merge two sorted linked lists into one sorted list and return its head.', '1→2→4 and 1→3→4 → 1→1→2→3→4→4', 'def merge_two_lists(l1, l2):', [
+  ('Make a dummy node so the head is easy to return, and a tail pointer', 'ListNode() is a placeholder in front of the answer.', 'dummy = ____()\ntail = dummy', 'dummy = ListNode()\ntail = dummy', []),
+  ('While both lists have nodes, attach the smaller one', 'Compare .val, attach with tail.next, and move that list forward.', 'while l1 and l2:\n    if l1.val <= l2.val:\n        tail.next, l1 = l1, l1.____\n    else:\n        tail.next, l2 = l2, l2.next', 'while l1 and l2:\n    if l1.val <= l2.val:\n        tail.next, l1 = l1, l1.next\n    else:\n        tail.next, l2 = l2, l2.next', ['multi-assign']),
+  ('Move the tail forward after each attach', 'tail = tail.next, inside the loop.', '    tail = tail.____', '    tail = tail.next', []),
+  ('Attach whatever is left, and return the node after the dummy', 'One list may still have nodes: l1 or l2 picks the non-empty one.', 'tail.next = l1 ____ l2\nreturn dummy.next', 'tail.next = l1 or l2\nreturn dummy.next', []),
+], [[[1, 2, 4], [1, 3, 4]], [[], []], [[], [0]], [[5], [1, 2, 3]]],
+  postlude=LL + """
+def _check(a, b):
+    return _to_list(merge_two_lists(_build(a), _build(b)))
+""", check='_check', want=[[1, 1, 2, 3, 4, 4], [], [0], [1, 2, 3, 5]])
+
+B('bp-ll-cycle', 'Linked List Cycle', 'linked-list-cycle-detection', 'easy', 'fast-slow',
+  'Return True if the linked list has a cycle, using O(1) memory.', '3→2→0→-4→(back to 2) → True', 'def has_cycle(head):', [
+  ('Start a slow and a fast pointer at the head', 'Both start at head.', 'slow, fast = head, ____', 'slow, fast = head, head', ['multi-assign']),
+  ('Loop while fast can still take two steps', 'Check fast and fast.next, or fast.next.next crashes on None.', 'while fast and fast.____:', 'while fast and fast.next:', []),
+  ('Slow moves one step, fast moves two; if they meet there is a cycle', 'Compare the nodes themselves with is.', '    slow = slow.next\n    fast = fast.next.next\n    if slow ____ fast:\n        return True', '    slow = slow.next\n    fast = fast.next.next\n    if slow is fast:\n        return True', []),
+  ('Fast fell off the end, so there is no cycle', 'After the loop.', 'return ____', 'return False', []),
+], [[[3, 2, 0, -4], 1], [[1, 2], 0], [[1], -1], [[], -1]],
+  postlude=LL + """
+def _check(vals, pos):
+    head = _build(vals)
+    if pos >= 0:
+        nodes, cur = [], head
+        while cur:
+            nodes.append(cur); cur = cur.next
+        nodes[-1].next = nodes[pos]
+    return has_cycle(head)
+""", check='_check', want=[True, True, False, False])
+
+B('bp-reorder-list', 'Reorder List', 'reorder-linked-list', 'medium', 'fast-slow',
+  'Reorder L0→L1→…→Ln into L0→Ln→L1→Ln-1→… in place.', '1→2→3→4 → 1→4→2→3', 'def reorder_list(head):', [
+  ('Find the middle with slow and fast pointers', 'fast starts one ahead so slow stops at the end of the first half.', 'slow, fast = head, head.____\nwhile fast and fast.next:\n    slow, fast = slow.next, fast.next.next', 'slow, fast = head, head.next\nwhile fast and fast.next:\n    slow, fast = slow.next, fast.next.next', ['multi-assign']),
+  ('Cut the list after the middle and reverse the second half', 'Standard reverse with prev and cur.', 'second, slow.next = slow.next, None\nprev = None\nwhile second:\n    nxt = second.next\n    second.next = ____\n    prev, second = second, nxt', 'second, slow.next = slow.next, None\nprev = None\nwhile second:\n    nxt = second.next\n    second.next = prev\n    prev, second = second, nxt', ['multi-assign']),
+  ('Weave: one node from the front, one from the reversed back, alternating', 'Save both next pointers before rewiring.', 'first, second = head, prev\nwhile second:\n    n1, n2 = first.next, second.____\n    first.next = second\n    second.next = n1\n    first, second = n1, n2', 'first, second = head, prev\nwhile second:\n    n1, n2 = first.next, second.next\n    first.next = second\n    second.next = n1\n    first, second = n1, n2', ['multi-assign']),
+  ('It changes the list in place, so return nothing', 'Just return.', 'return ____', 'return None', []),
+], [[[1, 2, 3, 4]], [[1, 2, 3, 4, 5]], [[1]], [[1, 2]]],
+  postlude=LL + """
+def _check(vals):
+    head = _build(vals)
+    if head:
+        reorder_list(head)
+    return _to_list(head)
+""", check='_check', want=[[1, 4, 2, 3], [1, 5, 2, 4, 3], [1], [1, 2]])
+
+B('bp-remove-nth', 'Remove Nth Node From End of List', 'remove-node-from-end-of-linked-list', 'medium', 'fast-slow',
+  'Remove the n-th node from the end of the list in one pass, and return the head.', '1→2→3→4→5, n = 2 → 1→2→3→5', 'def remove_nth_from_end(head, n):', [
+  ('A dummy node in front, so removing the head is not a special case', 'dummy.next = head.', 'dummy = ListNode(0, ____)\nleft = dummy\nright = head', 'dummy = ListNode(0, head)\nleft = dummy\nright = head', []),
+  ('Move right n steps ahead', 'A for loop n times.', 'for _ in range(____):\n    right = right.next', 'for _ in range(n):\n    right = right.next', []),
+  ('Move both until right falls off the end; left stops just before the node to remove', 'Walk together while right exists.', 'while ____:\n    left = left.next\n    right = right.next', 'while right:\n    left = left.next\n    right = right.next', []),
+  ('Skip over the node, and return the real head', 'left.next jumps two ahead.', 'left.next = left.next.____\nreturn dummy.next', 'left.next = left.next.next\nreturn dummy.next', []),
+], [[[1, 2, 3, 4, 5], 2], [[1], 1], [[1, 2], 1], [[1, 2], 2]],
+  postlude=LL + """
+def _check(vals, n):
+    return _to_list(remove_nth_from_end(_build(vals), n))
+""", check='_check', want=[[1, 2, 3, 5], [], [1], [2]])
+
+B('bp-add-two-numbers', 'Add Two Numbers', 'add-two-numbers', 'medium', 'reverse-ll',
+  'Two numbers are stored as linked lists with digits in reverse order. Return their sum as a linked list, also reversed.', '2→4→3 + 5→6→4 → 7→0→8 (342 + 465 = 807)', 'def add_two_numbers(l1, l2):', [
+  ('A dummy head, a tail pointer, and a carry of 0', 'Three setup lines.', 'dummy = ListNode()\ntail = dummy\ncarry = ____', 'dummy = ListNode()\ntail = dummy\ncarry = 0', []),
+  ('Keep going while either list has digits or there is a carry left', 'Missing digits count as 0.', 'while l1 or l2 or ____:\n    a = l1.val if l1 else 0\n    b = l2.val if l2 else 0', 'while l1 or l2 or carry:\n    a = l1.val if l1 else 0\n    b = l2.val if l2 else 0', []),
+  ('Add the digits, split into the new digit and the carry, and attach a node', 'divmod(total, 10) gives (carry, digit).', '    carry, digit = ____(a + b + carry, 10)\n    tail.next = ListNode(digit)\n    tail = tail.next', '    carry, digit = divmod(a + b + carry, 10)\n    tail.next = ListNode(digit)\n    tail = tail.next', ['floor-div']),
+  ('Move both lists forward, and return the result after the loop', 'Only move a list if it still has nodes.', '    l1 = l1.next if l1 else None\n    l2 = l2.next if l2 else ____\nreturn dummy.next', '    l1 = l1.next if l1 else None\n    l2 = l2.next if l2 else None\nreturn dummy.next', []),
+], [[[2, 4, 3], [5, 6, 4]], [[0], [0]], [[9, 9, 9, 9], [9, 9]], [[1], [9, 9]]],
+  postlude=LL + """
+def _check(a, b):
+    return _to_list(add_two_numbers(_build(a), _build(b)))
+""", check='_check', want=[[7, 0, 8], [0], [8, 9, 0, 0, 1], [0, 0, 1]])
+
+B('bp-find-duplicate', 'Find the Duplicate Number', 'find-duplicate-integer', 'medium', 'fast-slow',
+  'nums has n + 1 numbers, each from 1 to n, and exactly one value repeats. Find it without changing nums and with O(1) memory.', '[1, 3, 4, 2, 2] → 2', 'def find_duplicate(nums):', [
+  ('Treat each value as a pointer to an index; start slow and fast at 0', 'This turns the list into a linked list with a cycle.', 'slow, fast = 0, ____', 'slow, fast = 0, 0', ['multi-assign']),
+  ('Move slow one step and fast two steps until they meet', 'One step is nums[slow]; two steps is nums[nums[fast]].', 'while True:\n    slow = nums[slow]\n    fast = nums[nums[____]]\n    if slow == fast:\n        break', 'while True:\n    slow = nums[slow]\n    fast = nums[nums[fast]]\n    if slow == fast:\n        break', []),
+  ('Start a second pointer at 0 and move both one step until they meet: that is the cycle start', 'Floyd\'s trick: the meeting point is the duplicate.', 'slow2 = 0\nwhile slow2 != ____:\n    slow = nums[slow]\n    slow2 = nums[slow2]', 'slow2 = 0\nwhile slow2 != slow:\n    slow = nums[slow]\n    slow2 = nums[slow2]', []),
+  ('Return where they met', 'Either pointer.', 'return ____', 'return slow', []),
+], [[[1, 3, 4, 2, 2]], [[3, 1, 3, 4, 2]], [[1, 1]], [[2, 2, 2, 2]]], want=[2, 3, 1, 2])
+
+B('bp-lru-cache', 'LRU Cache', 'lru-cache', 'medium', 'hashing',
+  'Build an LRUCache with get(key) and put(key, value), both O(1). When over capacity, evict the least recently used key. get returns -1 for a missing key.', 'capacity 2: put(1,1), put(2,2), get(1) → 1, put(3,3) evicts 2', 'class LRUCache:', [
+  ('In __init__, remember the capacity and make an OrderedDict (it keeps keys in use order)', 'from collections import OrderedDict at the top of __init__ works.', 'def __init__(self, capacity):\n    from collections import OrderedDict\n    self.cap = capacity\n    self.cache = ____()', 'def __init__(self, capacity):\n    from collections import OrderedDict\n    self.cap = capacity\n    self.cache = OrderedDict()', ['defaultdict']),
+  ('get: missing key gives -1; otherwise mark it as most recent and return it', 'move_to_end(key) marks it most recent.', 'def get(self, key):\n    if key not in self.cache:\n        return -1\n    self.cache.____(key)\n    return self.cache[key]', 'def get(self, key):\n    if key not in self.cache:\n        return -1\n    self.cache.move_to_end(key)\n    return self.cache[key]', ['in-check']),
+  ('put: store the value and mark it most recent', 'Set it, then move_to_end.', 'def put(self, key, value):\n    self.cache[key] = value\n    self.cache.move_to_end(____)', 'def put(self, key, value):\n    self.cache[key] = value\n    self.cache.move_to_end(key)', []),
+  ('If over capacity, drop the oldest key (the first one)', 'popitem(last=False) removes the oldest.', '    if len(self.cache) > self.cap:\n        self.cache.popitem(last=____)', '    if len(self.cache) > self.cap:\n        self.cache.popitem(last=False)', []),
+], [[2, ['put', 'put', 'get', 'put', 'get', 'put', 'get', 'get', 'get'], [[1, 1], [2, 2], [1], [3, 3], [2], [4, 4], [1], [3], [4]]], [1, ['put', 'get', 'put', 'get', 'get'], [[2, 1], [2], [3, 2], [2], [3]]]],
+  postlude="""
+def _check(cap, ops, args):
+    c, out = LRUCache(cap), []
+    for op, a in zip(ops, args):
+        out.append(getattr(c, op)(*a))
+    return out
+""", check='_check', want=[[None, None, 1, None, -1, None, -1, 3, 4], [None, 1, None, -1, 2]])
+
+B('bp-min-stack', 'Min Stack', 'minimum-stack', 'medium', 'monotonic-stack',
+  'Build a MinStack with push, pop, top and getMin, all O(1).', 'push(-2), push(0), push(-3), getMin() → -3, pop(), getMin() → -2', 'class MinStack:', [
+  ('In __init__, one stack for values and one for the minimum at each level', 'Two empty lists.', 'def __init__(self):\n    self.stack = []\n    self.mins = ____', 'def __init__(self):\n    self.stack = []\n    self.mins = []', ['stack']),
+  ('push adds the value, and the smaller of it and the current minimum', 'If mins is empty, the value itself is the minimum.', 'def push(self, val):\n    self.stack.append(val)\n    self.mins.append(min(val, self.mins[-1]) if self.____ else val)', 'def push(self, val):\n    self.stack.append(val)\n    self.mins.append(min(val, self.mins[-1]) if self.mins else val)', ['stack', 'max-min']),
+  ('pop removes from both stacks', 'Two .pop() calls.', 'def pop(self):\n    self.stack.pop()\n    self.mins.____()', 'def pop(self):\n    self.stack.pop()\n    self.mins.pop()', ['stack']),
+  ('top and getMin just read the last item of each', 'stack[-1] is the top.', 'def top(self):\n    return self.stack[____]\n\ndef getMin(self):\n    return self.mins[-1]', 'def top(self):\n    return self.stack[-1]\n\ndef getMin(self):\n    return self.mins[-1]', ['stack']),
+], [[['push', 'push', 'push', 'getMin', 'pop', 'top', 'getMin'], [[-2], [0], [-3], [], [], [], []]], [['push', 'getMin', 'push', 'getMin'], [[5], [], [7], []]]],
+  postlude="""
+def _check(ops, args):
+    st, out = MinStack(), []
+    for op, a in zip(ops, args):
+        out.append(getattr(st, op)(*a))
+    return out
+""", check='_check', want=[[None, None, None, -3, None, 0, -2], [None, 5, None, 5]])
+
+B('bp-eval-rpn', 'Evaluate Reverse Polish Notation', 'evaluate-reverse-polish-notation', 'medium', 'monotonic-stack',
+  'Evaluate an expression in reverse Polish notation with + - * /. Division truncates toward zero.', '["2","1","+","3","*"] → 9', 'def eval_rpn(tokens):', [
+  ('Make a stack and loop over the tokens', 'An empty list.', 'stack = ____\nfor t in tokens:', 'stack = []\nfor t in tokens:', ['stack']),
+  ('A number goes straight onto the stack', 'Anything that is not one of the four operators is a number: int(t).', '    if t not in "+-*/":\n        stack.append(____(t))\n        continue', '    if t not in "+-*/":\n        stack.append(int(t))\n        continue', ['stack', 'in-check']),
+  ('An operator pops two numbers; the second pop is the LEFT operand', 'b = pop(), then a = pop(), then compute a op b. int(a / b) truncates toward zero.', '    b, a = stack.pop(), stack.____()\n    if t == "+": stack.append(a + b)\n    elif t == "-": stack.append(a - b)\n    elif t == "*": stack.append(a * b)\n    else: stack.append(int(a / b))', '    b, a = stack.pop(), stack.pop()\n    if t == "+": stack.append(a + b)\n    elif t == "-": stack.append(a - b)\n    elif t == "*": stack.append(a * b)\n    else: stack.append(int(a / b))', ['stack', 'multi-assign']),
+  ('The answer is the one value left', 'stack[0] or stack[-1].', 'return stack[____]', 'return stack[0]', []),
+], [[['2', '1', '+', '3', '*']], [['4', '13', '5', '/', '+']], [['10', '6', '9', '3', '+', '-11', '*', '/', '*', '17', '+', '5', '+']], [['3', '-4', '/']]], want=[9, 6, 22, 0])
+
+B('bp-generate-parens', 'Generate Parentheses', 'generate-parentheses', 'medium', 'backtracking',
+  'Return every valid string of n pairs of parentheses.', 'n = 3 → ["((()))","(()())","(())()","()(())","()()()"]', 'def generate_parenthesis(n):', [
+  ('Results list and a helper that tracks how many ( and ) are used', 'The helper builds the string as it goes.', 'res = ____\ndef bt(cur, opened, closed):', 'res = []\ndef bt(cur, opened, closed):', ['recursion']),
+  ('When both counts reach n, the string is complete', 'Save it and return.', '    if opened == closed == ____:\n        res.append(cur)\n        return', '    if opened == closed == n:\n        res.append(cur)\n        return', ['recursion']),
+  ('You can add ( while fewer than n are open, and ) while fewer ) than ( are used', 'Two separate ifs, both may happen.', '    if opened < n:\n        bt(cur + "(", opened + 1, closed)\n    if closed < ____:\n        bt(cur + ")", opened, closed + 1)', '    if opened < n:\n        bt(cur + "(", opened + 1, closed)\n    if closed < opened:\n        bt(cur + ")", opened, closed + 1)', ['recursion']),
+  ('Start empty and return the results', 'bt("", 0, 0).', 'bt("", 0, ____)\nreturn res', 'bt("", 0, 0)\nreturn res', []),
+], [[3], [1], [2]],
+  postlude="""
+def _check(n):
+    return sorted(generate_parenthesis(n))
+""", check='_check', want=[['((()))', '(()())', '(())()', '()(())', '()()()'], ['()'], ['(())', '()()']])
+
+B('bp-car-fleet', 'Car Fleet', 'car-fleet', 'medium', 'monotonic-stack',
+  'Cars drive toward target on one lane and can\'t pass. A car that catches up joins the slower fleet. Return how many fleets arrive.', 'target 12, position [10,8,0,5,3], speed [2,4,1,1,3] → 3', 'def car_fleet(target, position, speed):', [
+  ('Pair each car\'s position with its speed, sorted from closest to the target first', 'sorted(zip(...), reverse=True).', 'cars = sorted(zip(position, speed), reverse=____)\nstack = []', 'cars = sorted(zip(position, speed), reverse=True)\nstack = []', ['sort', 'stack']),
+  ('For each car, work out the time it needs to reach the target', 'Time is distance over speed.', 'for p, s in cars:\n    time = (target - p) / ____', 'for p, s in cars:\n    time = (target - p) / s', []),
+  ('If it needs MORE time than the fleet ahead, it can\'t catch it: it starts a new fleet', 'Compare with stack[-1], the slowest fleet ahead so far.', '    if not stack or time > stack[____]:\n        stack.append(time)', '    if not stack or time > stack[-1]:\n        stack.append(time)', ['stack']),
+  ('The number of fleets is the stack size', 'len().', 'return ____(stack)', 'return len(stack)', []),
+], [[12, [10, 8, 0, 5, 3], [2, 4, 1, 1, 3]], [10, [3], [3]], [100, [0, 2, 4], [4, 2, 1]]], want=[3, 1, 1])
+
+B('bp-diameter', 'Diameter of Binary Tree', 'binary-tree-diameter', 'easy', 'tree-traversal',
+  'Return the number of edges on the longest path between any two nodes.', '[1,2,3,4,5] → 3', 'def diameter_of_binary_tree(root):', [
+  ('Keep the best answer in a list so the helper can update it', 'A one item list is easy to change inside a nested function.', 'best = [____]', 'best = [0]', []),
+  ('A helper returns the height of a subtree; empty is 0', 'Base case first.', 'def height(node):\n    if not node:\n        return ____', 'def height(node):\n    if not node:\n        return 0', ['recursion']),
+  ('Get both heights; the longest path through this node is their sum', 'Update best[0] with max.', '    l, r = height(node.left), height(node.right)\n    best[0] = max(best[0], l + ____)\n    return 1 + max(l, r)', '    l, r = height(node.left), height(node.right)\n    best[0] = max(best[0], l + r)\n    return 1 + max(l, r)', ['recursion', 'max-min']),
+  ('Run it from the root and return the best', 'Call, then return best[0].', 'height(root)\nreturn best[____]', 'height(root)\nreturn best[0]', []),
+], [[[1, 2, 3, 4, 5]], [[1, 2]], [[]], [[1]]],
+  postlude=TREE + """
+def _check(vals):
+    return diameter_of_binary_tree(_tree(vals))
+""", check='_check', want=[3, 1, 0, 0])
+
+B('bp-balanced', 'Balanced Binary Tree', 'balanced-binary-tree', 'easy', 'tree-traversal',
+  'A tree is balanced if, at every node, the left and right heights differ by at most 1.', '[3,9,20,null,null,15,7] → True', 'def is_balanced(root):', [
+  ('A helper returns the height, or -1 as soon as anything below is unbalanced', 'Empty tree has height 0.', 'def check(node):\n    if not node:\n        return ____', 'def check(node):\n    if not node:\n        return 0', ['recursion']),
+  ('Check both sides; pass -1 straight up if either is unbalanced', 'Return early so you don\'t do extra work.', '    l = check(node.left)\n    r = check(node.right)\n    if l == -1 or r == ____:\n        return -1', '    l = check(node.left)\n    r = check(node.right)\n    if l == -1 or r == -1:\n        return -1', ['recursion']),
+  ('If the heights differ by more than 1, it\'s unbalanced; otherwise return the height', 'abs() of the difference.', '    if ____(l - r) > 1:\n        return -1\n    return 1 + max(l, r)', '    if abs(l - r) > 1:\n        return -1\n    return 1 + max(l, r)', ['max-min']),
+  ('Balanced means the helper didn\'t return -1', 'Compare with != -1.', 'return check(root) != ____', 'return check(root) != -1', []),
+], [[[3, 9, 20, None, None, 15, 7]], [[1, 2, 2, 3, 3, None, None, 4, 4]], [[]], [[1, 2]]],
+  postlude=TREE + """
+def _check(vals):
+    return is_balanced(_tree(vals))
+""", check='_check', want=[True, False, True, True])
+
+B('bp-same-tree', 'Same Tree', 'same-binary-tree', 'easy', 'tree-traversal',
+  'Return True if two binary trees have the same shape and the same values.', '[1,2,3] and [1,2,3] → True', 'def is_same_tree(p, q):', [
+  ('Both empty: the same', 'not p and not q.', 'if not p and not ____:\n    return True', 'if not p and not q:\n    return True', ['recursion']),
+  ('Only one empty: different', 'After the first check, "not p or not q" means exactly one is empty.', 'if not p or not ____:\n    return False', 'if not p or not q:\n    return False', []),
+  ('Different values: different', 'Compare .val.', 'if p.val != q.____:\n    return False', 'if p.val != q.val:\n    return False', []),
+  ('Otherwise both left subtrees and both right subtrees must match', 'Two recursive calls joined with and.', 'return is_same_tree(p.left, q.left) and is_same_tree(p.____, q.right)', 'return is_same_tree(p.left, q.left) and is_same_tree(p.right, q.right)', ['recursion']),
+], [[[1, 2, 3], [1, 2, 3]], [[1, 2], [1, None, 2]], [[1, 2, 1], [1, 1, 2]], [[], []]],
+  postlude=TREE + """
+def _check(a, b):
+    return is_same_tree(_tree(a), _tree(b))
+""", check='_check', want=[True, False, False, True])
+
+B('bp-subtree', 'Subtree of Another Tree', 'subtree-of-a-binary-tree', 'easy', 'tree-traversal',
+  'Return True if subRoot appears inside root as a whole subtree (same shape and values).', 'root [3,4,5,1,2], subRoot [4,1,2] → True', 'def is_subtree(root, sub):', [
+  ('A helper that checks if two trees are identical', 'Same as the Same Tree problem.', 'def same(a, b):\n    if not a and not b:\n        return True\n    if not a or not b or a.val != b.val:\n        return ____\n    return same(a.left, b.left) and same(a.right, b.right)', 'def same(a, b):\n    if not a and not b:\n        return True\n    if not a or not b or a.val != b.val:\n        return False\n    return same(a.left, b.left) and same(a.right, b.right)', ['recursion']),
+  ('An empty sub is always a subtree; an empty root can\'t contain a non-empty one', 'Check sub first.', 'if not sub:\n    return True\nif not ____:\n    return False', 'if not sub:\n    return True\nif not root:\n    return False', []),
+  ('If the tree starting here matches, done', 'Call the helper on root and sub.', 'if same(root, ____):\n    return True', 'if same(root, sub):\n    return True', []),
+  ('Otherwise look for it in the left or right subtree', 'Recurse on both sides with or.', 'return is_subtree(root.left, sub) ____ is_subtree(root.right, sub)', 'return is_subtree(root.left, sub) or is_subtree(root.right, sub)', ['recursion']),
+], [[[3, 4, 5, 1, 2], [4, 1, 2]], [[3, 4, 5, 1, 2, None, None, None, None, 0], [4, 1, 2]], [[1, 1], [1]]],
+  postlude=TREE + """
+def _check(a, b):
+    return is_subtree(_tree(a), _tree(b))
+""", check='_check', want=[True, False, True])
+
+B('bp-lca-bst', 'Lowest Common Ancestor of a BST', 'lowest-common-ancestor-in-binary-search-tree', 'medium', 'tree-traversal',
+  'In a binary search tree, return the value of the lowest node that has both p and q below it (a node counts as below itself).', 'BST [6,2,8,0,4,7,9,null,null,3,5], p 2, q 8 → 6', 'def lowest_common_ancestor(root, p, q):', [
+  ('Start at the root and walk down', 'A loop, no recursion needed.', 'cur = ____\nwhile cur:', 'cur = root\nwhile cur:', []),
+  ('If both values are bigger, the answer is in the right subtree', 'In a BST, bigger values live on the right.', '    if p > cur.val and q > cur.val:\n        cur = cur.____', '    if p > cur.val and q > cur.val:\n        cur = cur.right', []),
+  ('If both are smaller, go left', 'Mirror image.', '    elif p < cur.val and q < cur.val:\n        cur = cur.____', '    elif p < cur.val and q < cur.val:\n        cur = cur.left', []),
+  ('Otherwise they split here (or one IS this node): this is the answer', 'Return its value.', '    else:\n        return cur.____', '    else:\n        return cur.val', []),
+], [[[6, 2, 8, 0, 4, 7, 9, None, None, 3, 5], 2, 8], [[6, 2, 8, 0, 4, 7, 9, None, None, 3, 5], 2, 4], [[2, 1], 2, 1]],
+  postlude=TREE + """
+def _check(vals, p, q):
+    return lowest_common_ancestor(_tree(vals), p, q)
+""", check='_check', want=[6, 2, 2])
+
+B('bp-level-order', 'Binary Tree Level Order Traversal', 'level-order-traversal-of-binary-tree', 'medium', 'bfs',
+  'Return the node values level by level, left to right.', '[3,9,20,null,null,15,7] → [[3],[9,20],[15,7]]', 'def level_order(root):', [
+  ('Results list and a queue that starts with the root (if there is one)', 'deque([root]) if root else deque().', 'from collections import deque\nres = []\nq = ____([root] if root else [])', 'from collections import deque\nres = []\nq = deque([root] if root else [])', ['deque']),
+  ('While the queue has nodes, take exactly one level: as many nodes as are in the queue now', 'len(q) at the start of the loop is this level\'s size.', 'while q:\n    level = []\n    for _ in range(____(q)):', 'while q:\n    level = []\n    for _ in range(len(q)):', ['deque']),
+  ('Pop each node, record its value, and queue its children', 'popleft() takes from the front.', '        node = q.____()\n        level.append(node.val)\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.right)', '        node = q.popleft()\n        level.append(node.val)\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.right)', ['deque']),
+  ('Save the level, and return all levels at the end', 'Append the list after the inner loop.', '    res.append(____)\nreturn res', '    res.append(level)\nreturn res', []),
+], [[[3, 9, 20, None, None, 15, 7]], [[1]], [[]]],
+  postlude=TREE + """
+def _check(vals):
+    return level_order(_tree(vals))
+""", check='_check', want=[[[3], [9, 20], [15, 7]], [[1]], []])
+
+B('bp-right-side', 'Binary Tree Right Side View', 'binary-tree-right-side-view', 'medium', 'bfs',
+  'Return the values you would see standing on the right side of the tree, top to bottom.', '[1,2,3,null,5,null,4] → [1,3,4]', 'def right_side_view(root):', [
+  ('Results and a queue starting with the root', 'Same start as level order.', 'from collections import deque\nres = []\nq = deque([root] if root else ____)', 'from collections import deque\nres = []\nq = deque([root] if root else [])', ['deque']),
+  ('Process one level at a time', 'Loop len(q) times.', 'while q:\n    for i in range(____(q)):', 'while q:\n    for i in range(len(q)):', ['deque']),
+  ('Pop each node and queue its children, left then right', 'popleft().', '        node = q.popleft()\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.____)', '        node = q.popleft()\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.right)', ['deque']),
+  ('The last node popped in each level is the one you see; return the list at the end', 'After the inner loop, node is the last one of the level.', '    res.append(node.____)\nreturn res', '    res.append(node.val)\nreturn res', []),
+], [[[1, 2, 3, None, 5, None, 4]], [[1, None, 3]], [[]], [[1, 2]]],
+  postlude=TREE + """
+def _check(vals):
+    return right_side_view(_tree(vals))
+""", check='_check', want=[[1, 3, 4], [1, 3], [], [1, 2]])
+
+B('bp-good-nodes', 'Count Good Nodes in Binary Tree', 'count-good-nodes-in-binary-tree', 'medium', 'dfs',
+  'A node is good if no node on the path from the root to it has a bigger value. Count the good nodes.', '[3,1,4,3,null,1,5] → 4', 'def good_nodes(root):', [
+  ('A helper that carries the biggest value seen on the path so far', 'Empty node adds 0.', 'def dfs(node, top):\n    if not node:\n        return ____', 'def dfs(node, top):\n    if not node:\n        return 0', ['recursion']),
+  ('This node is good if it is at least as big as everything above it', '1 if good else 0.', '    good = 1 if node.val >= ____ else 0', '    good = 1 if node.val >= top else 0', []),
+  ('Update the path max and add the counts from both children', 'max(top, node.val) is the new path max.', '    top = max(top, node.____)\n    return good + dfs(node.left, top) + dfs(node.right, top)', '    top = max(top, node.val)\n    return good + dfs(node.left, top) + dfs(node.right, top)', ['recursion', 'max-min']),
+  ('Start at the root with its own value as the max', 'The root is always good.', 'return dfs(root, root.val) if root else ____', 'return dfs(root, root.val) if root else 0', []),
+], [[[3, 1, 4, 3, None, 1, 5]], [[3, 3, None, 4, 2]], [[1]]],
+  postlude=TREE + """
+def _check(vals):
+    return good_nodes(_tree(vals))
+""", check='_check', want=[4, 3, 1])
+
+B('bp-validate-bst', 'Validate Binary Search Tree', 'valid-binary-search-tree', 'medium', 'dfs',
+  'Return True if the tree is a valid BST: every node is bigger than everything in its left subtree and smaller than everything in its right subtree.', '[5,1,4,null,null,3,6] → False', 'def is_valid_bst(root):', [
+  ('A helper that carries the allowed range (low, high) for each node', 'An empty node is always valid.', 'def ok(node, low, high):\n    if not node:\n        return ____', 'def ok(node, low, high):\n    if not node:\n        return True', ['recursion']),
+  ('The node must be strictly inside its range', 'Equal values are not allowed.', '    if not (low < node.val < ____):\n        return False', '    if not (low < node.val < high):\n        return False', []),
+  ('Left children must be below this value, right children above it', 'Tighten one bound on each side.', '    return ok(node.left, low, node.val) and ok(node.right, node.____, high)', '    return ok(node.left, low, node.val) and ok(node.right, node.val, high)', ['recursion']),
+  ('Start with no limits', "float('-inf') and float('inf').", "return ok(root, float('-inf'), float('____'))", "return ok(root, float('-inf'), float('inf'))", ['infinity']),
+], [[[2, 1, 3]], [[5, 1, 4, None, None, 3, 6]], [[5, 4, 6, None, None, 3, 7]], [[1, 1]]],
+  postlude=TREE + """
+def _check(vals):
+    return is_valid_bst(_tree(vals))
+""", check='_check', want=[True, False, False, False])
+
+B('bp-kth-smallest-bst', 'Kth Smallest Element in a BST', 'kth-smallest-integer-in-bst', 'medium', 'dfs',
+  'Return the k-th smallest value in a BST (1-indexed).', '[3,1,4,null,2], k = 1 → 1', 'def kth_smallest(root, k):', [
+  ('In-order traversal visits a BST in sorted order; do it with a stack', 'cur starts at root.', 'stack, cur = [], ____', 'stack, cur = [], root', ['stack']),
+  ('Go as far left as possible, pushing nodes on the way', 'The smallest unvisited value is the leftmost.', 'while stack or cur:\n    while cur:\n        stack.append(cur)\n        cur = cur.____', 'while stack or cur:\n    while cur:\n        stack.append(cur)\n        cur = cur.left', ['stack']),
+  ('Pop the next smallest; count it, and stop at the k-th', 'k -= 1 each visit.', '    cur = stack.pop()\n    k -= 1\n    if k == ____:\n        return cur.val', '    cur = stack.pop()\n    k -= 1\n    if k == 0:\n        return cur.val', ['stack']),
+  ('Then continue into its right subtree', 'cur = cur.right.', '    cur = cur.____', '    cur = cur.right', []),
+], [[[3, 1, 4, None, 2], 1], [[5, 3, 6, 2, 4, None, None, 1], 3], [[1], 1]],
+  postlude=TREE + """
+def _check(vals, k):
+    return kth_smallest(_tree(vals), k)
+""", check='_check', want=[1, 3, 1])
+
+B('bp-build-tree', 'Construct Binary Tree from Preorder and Inorder', 'binary-tree-from-preorder-and-inorder-traversal', 'medium', 'dfs',
+  'Rebuild a binary tree (unique values) from its preorder and inorder lists.', 'pre [3,9,20,15,7], in [9,3,15,20,7] → [3,9,20,15,7]', 'def build_tree(preorder, inorder):', [
+  ('Map each value to its index in inorder for O(1) lookups, and keep a position in preorder', 'A dict comprehension with enumerate.', 'idx = {v: i for i, v in ____(inorder)}\npos = [0]', 'idx = {v: i for i, v in enumerate(inorder)}\npos = [0]', ['enumerate']),
+  ('A helper builds the subtree for the inorder range lo..hi; an empty range is no node', 'lo > hi means nothing left.', 'def build(lo, hi):\n    if lo > ____:\n        return None', 'def build(lo, hi):\n    if lo > hi:\n        return None', ['recursion']),
+  ('The next preorder value is this subtree\'s root', 'Read preorder[pos[0]], then move pos forward.', '    val = preorder[pos[0]]\n    pos[0] += 1\n    node = TreeNode(____)\n    mid = idx[val]', '    val = preorder[pos[0]]\n    pos[0] += 1\n    node = TreeNode(val)\n    mid = idx[val]', []),
+  ('Everything left of it in inorder is the left subtree; build left first, then right', 'Order matters: preorder lists the left subtree before the right.', '    node.left = build(lo, mid - 1)\n    node.right = build(mid + 1, ____)\n    return node\nreturn build(0, len(inorder) - 1)', '    node.left = build(lo, mid - 1)\n    node.right = build(mid + 1, hi)\n    return node\nreturn build(0, len(inorder) - 1)', ['recursion']),
+], [[[3, 9, 20, 15, 7], [9, 3, 15, 20, 7]], [[-1], [-1]], [[1, 2], [2, 1]]],
+  postlude=TREE + """
+def _check(pre, ino):
+    return _level(build_tree(pre, ino))
+""", check='_check', want=[[3, 9, 20, 15, 7], [-1], [1, 2]])
+
 # ───────────────────────── Build, verify, emit ─────────────────────────
 def assemble(p, use='code'):
     body = '\n'.join(s[use] for s in p['steps'])
@@ -377,9 +722,13 @@ for p in P:
     full = src + ('\n\n' + p['postlude'] if p['postlude'] else '')
     ns = {}
     exec(full, ns)
-    fn = ns[p['check'] or p['signature'].split('def ')[1].split('(')[0]]
-    p['func'] = p['check'] or p['signature'].split('def ')[1].split('(')[0]
+    fname = re.match(r'(?:def|class) (\w+)', p['signature']).group(1)
+    fn = ns[p['check'] or fname]
+    p['func'] = p['check'] or fname
     p['expected'] = [json.loads(json.dumps(fn(*copy.deepcopy(t)))) for t in p['tests']]
+    if p.get('want') is not None:
+        assert p['expected'] == p['want'], (p['id'], p['expected'], p['want'])
+    p.pop('want', None)
     # Every template must have blanks and still be the same shape as the code.
     for s in p['steps']:
         assert '____' in s['template'], (p['id'], s['text'])

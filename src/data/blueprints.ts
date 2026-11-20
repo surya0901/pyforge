@@ -3051,5 +3051,2887 @@ export const BLUEPRINTS: Blueprint[] = [
     []
    ]
   ]
+ },
+ {
+  "id": "bp-encode-decode",
+  "title": "Encode and Decode Strings",
+  "nc": "string-encode-and-decode",
+  "difficulty": "medium",
+  "pattern": "hashing",
+  "statement": "Write encode (a list of strings into one string) and decode (back again). Strings can contain any character, including \"#\". decode(encode(strs)) must return the original list.",
+  "example": "[\"neet\",\"code\",\"#love\"] round trips unchanged",
+  "signature": "class Codec:",
+  "steps": [
+   {
+    "text": "encode: put each word's length and a \"#\" in front of it, and join everything",
+    "clue": "f\"{len(w)}#{w}\" builds one piece. \"\".join(...) glues the pieces with nothing between.",
+    "template": "def encode(self, strs):\n    return \"\".join(f\"{____(w)}#{w}\" for w in strs)",
+    "code": "def encode(self, strs):\n    return \"\".join(f\"{len(w)}#{w}\" for w in strs)",
+    "idioms": [
+     "str-methods"
+    ]
+   },
+   {
+    "text": "decode: start a result list and a position at 0",
+    "clue": "A second method.",
+    "template": "def decode(self, s):\n    res, i = [], ____",
+    "code": "def decode(self, s):\n    res, i = [], 0",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "Read digits up to the next \"#\" to get the length",
+    "clue": "Move j forward until s[j] is \"#\". The length is int(s[i:j]).",
+    "template": "    while i < len(s):\n        j = i\n        while s[j] != \"____\":\n            j += 1\n        length = int(s[i:j])",
+    "code": "    while i < len(s):\n        j = i\n        while s[j] != \"#\":\n            j += 1\n        length = int(s[i:j])",
+    "idioms": [
+     "slicing"
+    ]
+   },
+   {
+    "text": "Slice out exactly that many characters, jump past them, and return the list",
+    "clue": "The word starts right after the \"#\": s[j + 1 : j + 1 + length].",
+    "template": "        res.append(s[j + 1 : j + 1 + ____])\n        i = j + 1 + length\n    return res",
+    "code": "        res.append(s[j + 1 : j + 1 + length])\n        i = j + 1 + length\n    return res",
+    "idioms": [
+     "slicing"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     "neet",
+     "code",
+     "love",
+     "you"
+    ]
+   ],
+   [
+    [
+     "we",
+     "say",
+     ":",
+     "yes",
+     "#4#"
+    ]
+   ],
+   [
+    []
+   ],
+   [
+    [
+     ""
+    ]
+   ]
+  ],
+  "postlude": "def _check(strs):\n    c = Codec()\n    return c.decode(c.encode(strs))",
+  "check": "_check",
+  "solution": "class Codec:\n    def encode(self, strs):\n        return \"\".join(f\"{len(w)}#{w}\" for w in strs)\n    def decode(self, s):\n        res, i = [], 0\n        while i < len(s):\n            j = i\n            while s[j] != \"#\":\n                j += 1\n            length = int(s[i:j])\n            res.append(s[j + 1 : j + 1 + length])\n            i = j + 1 + length\n        return res\n",
+  "func": "_check",
+  "expected": [
+   [
+    "neet",
+    "code",
+    "love",
+    "you"
+   ],
+   [
+    "we",
+    "say",
+    ":",
+    "yes",
+    "#4#"
+   ],
+   [],
+   [
+    ""
+   ]
+  ]
+ },
+ {
+  "id": "bp-trapping-rain",
+  "title": "Trapping Rain Water",
+  "nc": "trapping-rain-water",
+  "difficulty": "hard",
+  "pattern": "two-pointers",
+  "statement": "Given bar heights, return how much rain water is trapped between them.",
+  "example": "[0,1,0,2,1,0,1,3,2,1,2,1] \u2192 6",
+  "signature": "def trap(height):",
+  "steps": [
+   {
+    "text": "Two pointers at the ends, the tallest bar seen from each side, and the total",
+    "clue": "Start left_max and right_max at the end bars.",
+    "template": "if not height:\n    return 0\nl, r = 0, len(height) - ____\nleft_max, right_max = height[l], height[r]\nwater = 0",
+    "code": "if not height:\n    return 0\nl, r = 0, len(height) - 1\nleft_max, right_max = height[l], height[r]\nwater = 0",
+    "idioms": [
+     "two-pointers"
+    ]
+   },
+   {
+    "text": "Loop until the pointers meet, always moving the side with the smaller max",
+    "clue": "The smaller side is the one that limits the water.",
+    "template": "while l < r:\n    if left_max < ____:",
+    "code": "while l < r:\n    if left_max < right_max:",
+    "idioms": [
+     "two-pointers"
+    ]
+   },
+   {
+    "text": "Left side: step in, update its max, and add the water above this bar",
+    "clue": "Water above a bar is max on that side minus the bar.",
+    "template": "        l += 1\n        left_max = max(left_max, height[l])\n        water += left_max - height[____]",
+    "code": "        l += 1\n        left_max = max(left_max, height[l])\n        water += left_max - height[l]",
+    "idioms": [
+     "max-min"
+    ]
+   },
+   {
+    "text": "Otherwise do the same from the right, and return the total",
+    "clue": "Mirror image: r -= 1.",
+    "template": "    else:\n        r -= 1\n        right_max = max(right_max, height[r])\n        water += right_max - height[____]\nreturn water",
+    "code": "    else:\n        r -= 1\n        right_max = max(right_max, height[r])\n        water += right_max - height[r]\nreturn water",
+    "idioms": [
+     "max-min"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     0,
+     1,
+     0,
+     2,
+     1,
+     0,
+     1,
+     3,
+     2,
+     1,
+     2,
+     1
+    ]
+   ],
+   [
+    [
+     4,
+     2,
+     0,
+     3,
+     2,
+     5
+    ]
+   ],
+   [
+    []
+   ],
+   [
+    [
+     3
+    ]
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def trap(height):\n    if not height:\n        return 0\n    l, r = 0, len(height) - 1\n    left_max, right_max = height[l], height[r]\n    water = 0\n    while l < r:\n        if left_max < right_max:\n            l += 1\n            left_max = max(left_max, height[l])\n            water += left_max - height[l]\n        else:\n            r -= 1\n            right_max = max(right_max, height[r])\n            water += right_max - height[r]\n    return water\n",
+  "func": "trap",
+  "expected": [
+   6,
+   9,
+   0,
+   0
+  ]
+ },
+ {
+  "id": "bp-char-replacement",
+  "title": "Longest Repeating Character Replacement",
+  "nc": "longest-repeating-substring-with-replacement",
+  "difficulty": "medium",
+  "pattern": "sliding-window",
+  "statement": "You may replace at most k characters. Return the length of the longest substring that can become one repeated letter.",
+  "example": "s = \"AABABBA\", k = 1 \u2192 4",
+  "signature": "def character_replacement(s, k):",
+  "steps": [
+   {
+    "text": "A dict of letter counts in the window, the left edge, the top count, and the best",
+    "clue": "Four setup values.",
+    "template": "count = {}\nl = 0\ntop = 0\nbest = ____",
+    "code": "count = {}\nl = 0\ntop = 0\nbest = 0",
+    "idioms": [
+     "dict-get"
+    ]
+   },
+   {
+    "text": "Grow the window to the right and count the new letter",
+    "clue": "count.get(ch, 0) + 1, then track the most common letter count.",
+    "template": "for r in range(len(s)):\n    count[s[r]] = count.____(s[r], 0) + 1\n    top = max(top, count[s[r]])",
+    "code": "for r in range(len(s)):\n    count[s[r]] = count.get(s[r], 0) + 1\n    top = max(top, count[s[r]])",
+    "idioms": [
+     "dict-get",
+     "max-min"
+    ]
+   },
+   {
+    "text": "If the letters to replace (window size minus top) exceed k, drop the left letter",
+    "clue": "Window size is r - l + 1. One step left is enough, so use if, not while.",
+    "template": "    if (r - l + 1) - top > ____:\n        count[s[l]] -= 1\n        l += 1",
+    "code": "    if (r - l + 1) - top > k:\n        count[s[l]] -= 1\n        l += 1",
+    "idioms": []
+   },
+   {
+    "text": "Record the window size, and return the best",
+    "clue": "max() again.",
+    "template": "    best = max(best, r - l + ____)\nreturn best",
+    "code": "    best = max(best, r - l + 1)\nreturn best",
+    "idioms": [
+     "max-min"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    "ABAB",
+    2
+   ],
+   [
+    "AABABBA",
+    1
+   ],
+   [
+    "A",
+    0
+   ],
+   [
+    "AAAA",
+    0
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def character_replacement(s, k):\n    count = {}\n    l = 0\n    top = 0\n    best = 0\n    for r in range(len(s)):\n        count[s[r]] = count.get(s[r], 0) + 1\n        top = max(top, count[s[r]])\n        if (r - l + 1) - top > k:\n            count[s[l]] -= 1\n            l += 1\n        best = max(best, r - l + 1)\n    return best\n",
+  "func": "character_replacement",
+  "expected": [
+   4,
+   4,
+   1,
+   4
+  ]
+ },
+ {
+  "id": "bp-permutation-string",
+  "title": "Permutation in String",
+  "nc": "permutation-string",
+  "difficulty": "medium",
+  "pattern": "sliding-window",
+  "statement": "Return True if some window of s2 is a rearrangement of s1.",
+  "example": "s1 = \"ab\", s2 = \"eidbaooo\" \u2192 True",
+  "signature": "def check_inclusion(s1, s2):",
+  "steps": [
+   {
+    "text": "If s1 is longer it can never fit; otherwise count the letters of s1",
+    "clue": "Counter(s1) counts every letter at once.",
+    "template": "from collections import Counter\nif len(s1) > len(s2):\n    return False\nneed = ____(s1)",
+    "code": "from collections import Counter\nif len(s1) > len(s2):\n    return False\nneed = Counter(s1)",
+    "idioms": [
+     "counter"
+    ]
+   },
+   {
+    "text": "Count the first window of s2, the same length as s1",
+    "clue": "Slice s2[:len(s1)].",
+    "template": "window = Counter(s2[:____(s1)])\nif window == need:\n    return True",
+    "code": "window = Counter(s2[:len(s1)])\nif window == need:\n    return True",
+    "idioms": [
+     "counter",
+     "slicing"
+    ]
+   },
+   {
+    "text": "Slide one step at a time: add the new letter on the right, remove the old one on the left",
+    "clue": "The letter leaving is s2[i - len(s1)].",
+    "template": "for i in range(len(s1), len(s2)):\n    window[s2[i]] += 1\n    window[s2[i - ____(s1)]] -= 1",
+    "code": "for i in range(len(s1), len(s2)):\n    window[s2[i]] += 1\n    window[s2[i - len(s1)]] -= 1",
+    "idioms": []
+   },
+   {
+    "text": "Compare after each step (drop zero counts first), and return False at the end",
+    "clue": "+Counter() removes zero counts, so the comparison is fair.",
+    "template": "    if +window == ____:\n        return True\nreturn False",
+    "code": "    if +window == need:\n        return True\nreturn False",
+    "idioms": [
+     "counter"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    "ab",
+    "eidbaooo"
+   ],
+   [
+    "ab",
+    "eidboaoo"
+   ],
+   [
+    "adc",
+    "dcda"
+   ],
+   [
+    "abc",
+    "ab"
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def check_inclusion(s1, s2):\n    from collections import Counter\n    if len(s1) > len(s2):\n        return False\n    need = Counter(s1)\n    window = Counter(s2[:len(s1)])\n    if window == need:\n        return True\n    for i in range(len(s1), len(s2)):\n        window[s2[i]] += 1\n        window[s2[i - len(s1)]] -= 1\n        if +window == need:\n            return True\n    return False\n",
+  "func": "check_inclusion",
+  "expected": [
+   true,
+   false,
+   true,
+   false
+  ]
+ },
+ {
+  "id": "bp-search-2d",
+  "title": "Search a 2D Matrix",
+  "nc": "search-2d-matrix",
+  "difficulty": "medium",
+  "pattern": "binary-search",
+  "statement": "Each row is sorted, and each row starts after the previous one ends. Return True if target is in the matrix, in O(log(m\u00b7n)).",
+  "example": "target 3 in [[1,3,5,7],[10,11,16,20],[23,30,34,60]] \u2192 True",
+  "signature": "def search_matrix(matrix, target):",
+  "steps": [
+   {
+    "text": "Treat the whole matrix as one sorted list of rows times cols cells",
+    "clue": "lo = 0, hi = rows * cols - 1.",
+    "template": "rows, cols = len(matrix), len(matrix[0])\nlo, hi = 0, rows * ____ - 1",
+    "code": "rows, cols = len(matrix), len(matrix[0])\nlo, hi = 0, rows * cols - 1",
+    "idioms": []
+   },
+   {
+    "text": "Binary search, turning the middle index back into a row and column",
+    "clue": "Row is mid // cols, column is mid % cols.",
+    "template": "while lo <= hi:\n    mid = (lo + hi) // 2\n    val = matrix[mid // ____][mid % cols]",
+    "code": "while lo <= hi:\n    mid = (lo + hi) // 2\n    val = matrix[mid // cols][mid % cols]",
+    "idioms": [
+     "floor-div"
+    ]
+   },
+   {
+    "text": "Found it, or throw away the half that can't hold it",
+    "clue": "Too small: lo = mid + 1. Too big: hi = mid - 1.",
+    "template": "    if val == target:\n        return True\n    if val < target:\n        lo = mid + ____\n    else:\n        hi = mid - 1",
+    "code": "    if val == target:\n        return True\n    if val < target:\n        lo = mid + 1\n    else:\n        hi = mid - 1",
+    "idioms": []
+   },
+   {
+    "text": "Not found after the loop",
+    "clue": "Return after the loop.",
+    "template": "return ____",
+    "code": "return False",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     [
+      1,
+      3,
+      5,
+      7
+     ],
+     [
+      10,
+      11,
+      16,
+      20
+     ],
+     [
+      23,
+      30,
+      34,
+      60
+     ]
+    ],
+    3
+   ],
+   [
+    [
+     [
+      1,
+      3,
+      5,
+      7
+     ],
+     [
+      10,
+      11,
+      16,
+      20
+     ],
+     [
+      23,
+      30,
+      34,
+      60
+     ]
+    ],
+    13
+   ],
+   [
+    [
+     [
+      1
+     ]
+    ],
+    1
+   ],
+   [
+    [
+     [
+      1,
+      3
+     ]
+    ],
+    3
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def search_matrix(matrix, target):\n    rows, cols = len(matrix), len(matrix[0])\n    lo, hi = 0, rows * cols - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        val = matrix[mid // cols][mid % cols]\n        if val == target:\n            return True\n        if val < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return False\n",
+  "func": "search_matrix",
+  "expected": [
+   true,
+   false,
+   true,
+   true
+  ]
+ },
+ {
+  "id": "bp-find-min-rotated",
+  "title": "Find Minimum in Rotated Sorted Array",
+  "nc": "find-minimum-in-rotated-sorted-array",
+  "difficulty": "medium",
+  "pattern": "binary-search",
+  "statement": "A sorted list of distinct numbers was rotated. Return the smallest value in O(log N).",
+  "example": "[3, 4, 5, 1, 2] \u2192 1",
+  "signature": "def find_min(nums):",
+  "steps": [
+   {
+    "text": "Search the whole list",
+    "clue": "lo and hi at both ends.",
+    "template": "lo, hi = 0, len(nums) - ____",
+    "code": "lo, hi = 0, len(nums) - 1",
+    "idioms": []
+   },
+   {
+    "text": "Loop while lo is before hi and look at the middle",
+    "clue": "lo < hi, because you stop when one index is left.",
+    "template": "while lo ____ hi:\n    mid = (lo + hi) // 2",
+    "code": "while lo < hi:\n    mid = (lo + hi) // 2",
+    "idioms": [
+     "floor-div"
+    ]
+   },
+   {
+    "text": "If the middle is bigger than the right end, the drop (the minimum) is to the right; otherwise it is at mid or left",
+    "clue": "Compare with nums[hi]. Keep mid in the range in the second case: hi = mid.",
+    "template": "    if nums[mid] > nums[____]:\n        lo = mid + 1\n    else:\n        hi = mid",
+    "code": "    if nums[mid] > nums[hi]:\n        lo = mid + 1\n    else:\n        hi = mid",
+    "idioms": []
+   },
+   {
+    "text": "lo now points at the minimum",
+    "clue": "Return the value, not the index.",
+    "template": "return nums[____]",
+    "code": "return nums[lo]",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     4,
+     5,
+     1,
+     2
+    ]
+   ],
+   [
+    [
+     4,
+     5,
+     6,
+     7,
+     0,
+     1,
+     2
+    ]
+   ],
+   [
+    [
+     11,
+     13,
+     15,
+     17
+    ]
+   ],
+   [
+    [
+     2,
+     1
+    ]
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def find_min(nums):\n    lo, hi = 0, len(nums) - 1\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] > nums[hi]:\n            lo = mid + 1\n        else:\n            hi = mid\n    return nums[lo]\n",
+  "func": "find_min",
+  "expected": [
+   1,
+   0,
+   11,
+   1
+  ]
+ },
+ {
+  "id": "bp-search-rotated",
+  "title": "Search in Rotated Sorted Array",
+  "nc": "find-target-in-rotated-sorted-array",
+  "difficulty": "medium",
+  "pattern": "binary-search",
+  "statement": "A sorted list of distinct numbers was rotated. Return the index of target or -1, in O(log N).",
+  "example": "[4,5,6,7,0,1,2], target 0 \u2192 4",
+  "signature": "def search_rotated(nums, target):",
+  "steps": [
+   {
+    "text": "Standard binary search setup and loop",
+    "clue": "Inclusive hi, so lo <= hi.",
+    "template": "lo, hi = 0, len(nums) - 1\nwhile lo <= hi:\n    mid = (lo + hi) // ____\n    if nums[mid] == target:\n        return mid",
+    "code": "lo, hi = 0, len(nums) - 1\nwhile lo <= hi:\n    mid = (lo + hi) // 2\n    if nums[mid] == target:\n        return mid",
+    "idioms": [
+     "floor-div"
+    ]
+   },
+   {
+    "text": "If the left half is sorted, check whether the target lies inside it",
+    "clue": "Left half sorted when nums[lo] <= nums[mid]. Target inside means nums[lo] <= target < nums[mid].",
+    "template": "    if nums[lo] <= nums[mid]:\n        if nums[lo] <= target < nums[____]:\n            hi = mid - 1\n        else:\n            lo = mid + 1",
+    "code": "    if nums[lo] <= nums[mid]:\n        if nums[lo] <= target < nums[mid]:\n            hi = mid - 1\n        else:\n            lo = mid + 1",
+    "idioms": []
+   },
+   {
+    "text": "Otherwise the right half is sorted: check whether the target lies inside it",
+    "clue": "Inside means nums[mid] < target <= nums[hi].",
+    "template": "    else:\n        if nums[mid] < target <= nums[____]:\n            lo = mid + 1\n        else:\n            hi = mid - 1",
+    "code": "    else:\n        if nums[mid] < target <= nums[hi]:\n            lo = mid + 1\n        else:\n            hi = mid - 1",
+    "idioms": []
+   },
+   {
+    "text": "Not found",
+    "clue": "After the loop.",
+    "template": "return ____",
+    "code": "return -1",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     4,
+     5,
+     6,
+     7,
+     0,
+     1,
+     2
+    ],
+    0
+   ],
+   [
+    [
+     4,
+     5,
+     6,
+     7,
+     0,
+     1,
+     2
+    ],
+    3
+   ],
+   [
+    [
+     1
+    ],
+    0
+   ],
+   [
+    [
+     3,
+     1
+    ],
+    1
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def search_rotated(nums, target):\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if nums[mid] == target:\n            return mid\n        if nums[lo] <= nums[mid]:\n            if nums[lo] <= target < nums[mid]:\n                hi = mid - 1\n            else:\n                lo = mid + 1\n        else:\n            if nums[mid] < target <= nums[hi]:\n                lo = mid + 1\n            else:\n                hi = mid - 1\n    return -1\n",
+  "func": "search_rotated",
+  "expected": [
+   4,
+   -1,
+   -1,
+   1
+  ]
+ },
+ {
+  "id": "bp-time-map",
+  "title": "Time Based Key-Value Store",
+  "nc": "time-based-key-value-store",
+  "difficulty": "medium",
+  "pattern": "binary-search",
+  "statement": "Build a TimeMap: set(key, value, timestamp) stores a value; get(key, timestamp) returns the value with the largest timestamp <= the given one, or \"\". Timestamps for a key always increase.",
+  "example": "set(\"foo\",\"bar\",1); get(\"foo\",3) \u2192 \"bar\"",
+  "signature": "class TimeMap:",
+  "steps": [
+   {
+    "text": "In __init__, make a dict from key to a list of [timestamp, value] pairs",
+    "clue": "self.store = {}",
+    "template": "def __init__(self):\n    self.store = ____",
+    "code": "def __init__(self):\n    self.store = {}",
+    "idioms": []
+   },
+   {
+    "text": "set appends the pair to that key's list",
+    "clue": "setdefault(key, []) creates the list the first time.",
+    "template": "def set(self, key, value, timestamp):\n    self.store.____(key, []).append([timestamp, value])",
+    "code": "def set(self, key, value, timestamp):\n    self.store.setdefault(key, []).append([timestamp, value])",
+    "idioms": [
+     "dict-get"
+    ]
+   },
+   {
+    "text": "get binary searches that list for the last timestamp <= the query",
+    "clue": "Pairs are in timestamp order. When pairs[mid][0] <= timestamp, it is a candidate: save it and search right.",
+    "template": "def get(self, key, timestamp):\n    pairs = self.store.get(key, [])\n    res, lo, hi = \"\", 0, len(pairs) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if pairs[mid][0] <= ____:\n            res = pairs[mid][1]\n            lo = mid + 1\n        else:\n            hi = mid - 1",
+    "code": "def get(self, key, timestamp):\n    pairs = self.store.get(key, [])\n    res, lo, hi = \"\", 0, len(pairs) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if pairs[mid][0] <= timestamp:\n            res = pairs[mid][1]\n            lo = mid + 1\n        else:\n            hi = mid - 1",
+    "idioms": [
+     "floor-div"
+    ]
+   },
+   {
+    "text": "Return the best candidate (or \"\" if none)",
+    "clue": "res started as \"\".",
+    "template": "    return ____",
+    "code": "    return res",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     "set",
+     "get",
+     "get",
+     "set",
+     "get",
+     "get"
+    ],
+    [
+     [
+      "foo",
+      "bar",
+      1
+     ],
+     [
+      "foo",
+      1
+     ],
+     [
+      "foo",
+      3
+     ],
+     [
+      "foo",
+      "bar2",
+      4
+     ],
+     [
+      "foo",
+      4
+     ],
+     [
+      "foo",
+      5
+     ]
+    ]
+   ],
+   [
+    [
+     "get"
+    ],
+    [
+     [
+      "x",
+      1
+     ]
+    ]
+   ],
+   [
+    [
+     "set",
+     "get"
+    ],
+    [
+     [
+      "a",
+      "b",
+      5
+     ],
+     [
+      "a",
+      4
+     ]
+    ]
+   ]
+  ],
+  "postlude": "def _check(ops, args):\n    tm, out = TimeMap(), []\n    for op, a in zip(ops, args):\n        out.append(getattr(tm, op)(*a))\n    return out",
+  "check": "_check",
+  "solution": "class TimeMap:\n    def __init__(self):\n        self.store = {}\n    def set(self, key, value, timestamp):\n        self.store.setdefault(key, []).append([timestamp, value])\n    def get(self, key, timestamp):\n        pairs = self.store.get(key, [])\n        res, lo, hi = \"\", 0, len(pairs) - 1\n        while lo <= hi:\n            mid = (lo + hi) // 2\n            if pairs[mid][0] <= timestamp:\n                res = pairs[mid][1]\n                lo = mid + 1\n            else:\n                hi = mid - 1\n        return res\n",
+  "func": "_check",
+  "expected": [
+   [
+    null,
+    "bar",
+    "bar",
+    null,
+    "bar2",
+    "bar2"
+   ],
+   [
+    ""
+   ],
+   [
+    null,
+    ""
+   ]
+  ]
+ },
+ {
+  "id": "bp-merge-two-lists",
+  "title": "Merge Two Sorted Lists",
+  "nc": "merge-two-sorted-linked-lists",
+  "difficulty": "easy",
+  "pattern": "reverse-ll",
+  "statement": "Merge two sorted linked lists into one sorted list and return its head.",
+  "example": "1\u21922\u21924 and 1\u21923\u21924 \u2192 1\u21921\u21922\u21923\u21924\u21924",
+  "signature": "def merge_two_lists(l1, l2):",
+  "steps": [
+   {
+    "text": "Make a dummy node so the head is easy to return, and a tail pointer",
+    "clue": "ListNode() is a placeholder in front of the answer.",
+    "template": "dummy = ____()\ntail = dummy",
+    "code": "dummy = ListNode()\ntail = dummy",
+    "idioms": []
+   },
+   {
+    "text": "While both lists have nodes, attach the smaller one",
+    "clue": "Compare .val, attach with tail.next, and move that list forward.",
+    "template": "while l1 and l2:\n    if l1.val <= l2.val:\n        tail.next, l1 = l1, l1.____\n    else:\n        tail.next, l2 = l2, l2.next",
+    "code": "while l1 and l2:\n    if l1.val <= l2.val:\n        tail.next, l1 = l1, l1.next\n    else:\n        tail.next, l2 = l2, l2.next",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "Move the tail forward after each attach",
+    "clue": "tail = tail.next, inside the loop.",
+    "template": "    tail = tail.____",
+    "code": "    tail = tail.next",
+    "idioms": []
+   },
+   {
+    "text": "Attach whatever is left, and return the node after the dummy",
+    "clue": "One list may still have nodes: l1 or l2 picks the non-empty one.",
+    "template": "tail.next = l1 ____ l2\nreturn dummy.next",
+    "code": "tail.next = l1 or l2\nreturn dummy.next",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     2,
+     4
+    ],
+    [
+     1,
+     3,
+     4
+    ]
+   ],
+   [
+    [],
+    []
+   ],
+   [
+    [],
+    [
+     0
+    ]
+   ],
+   [
+    [
+     5
+    ],
+    [
+     1,
+     2,
+     3
+    ]
+   ]
+  ],
+  "postlude": "class ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef _to_list(head):\n    out = []\n    while head:\n        out.append(head.val)\n        head = head.next\n    return out\n\ndef _build(vals):\n    dummy = ListNode()\n    cur = dummy\n    for v in vals:\n        cur.next = ListNode(v)\n        cur = cur.next\n    return dummy.next\n\ndef _check(a, b):\n    return _to_list(merge_two_lists(_build(a), _build(b)))",
+  "check": "_check",
+  "solution": "def merge_two_lists(l1, l2):\n    dummy = ListNode()\n    tail = dummy\n    while l1 and l2:\n        if l1.val <= l2.val:\n            tail.next, l1 = l1, l1.next\n        else:\n            tail.next, l2 = l2, l2.next\n        tail = tail.next\n    tail.next = l1 or l2\n    return dummy.next\n",
+  "func": "_check",
+  "expected": [
+   [
+    1,
+    1,
+    2,
+    3,
+    4,
+    4
+   ],
+   [],
+   [
+    0
+   ],
+   [
+    1,
+    2,
+    3,
+    5
+   ]
+  ]
+ },
+ {
+  "id": "bp-ll-cycle",
+  "title": "Linked List Cycle",
+  "nc": "linked-list-cycle-detection",
+  "difficulty": "easy",
+  "pattern": "fast-slow",
+  "statement": "Return True if the linked list has a cycle, using O(1) memory.",
+  "example": "3\u21922\u21920\u2192-4\u2192(back to 2) \u2192 True",
+  "signature": "def has_cycle(head):",
+  "steps": [
+   {
+    "text": "Start a slow and a fast pointer at the head",
+    "clue": "Both start at head.",
+    "template": "slow, fast = head, ____",
+    "code": "slow, fast = head, head",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "Loop while fast can still take two steps",
+    "clue": "Check fast and fast.next, or fast.next.next crashes on None.",
+    "template": "while fast and fast.____:",
+    "code": "while fast and fast.next:",
+    "idioms": []
+   },
+   {
+    "text": "Slow moves one step, fast moves two; if they meet there is a cycle",
+    "clue": "Compare the nodes themselves with is.",
+    "template": "    slow = slow.next\n    fast = fast.next.next\n    if slow ____ fast:\n        return True",
+    "code": "    slow = slow.next\n    fast = fast.next.next\n    if slow is fast:\n        return True",
+    "idioms": []
+   },
+   {
+    "text": "Fast fell off the end, so there is no cycle",
+    "clue": "After the loop.",
+    "template": "return ____",
+    "code": "return False",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     2,
+     0,
+     -4
+    ],
+    1
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    0
+   ],
+   [
+    [
+     1
+    ],
+    -1
+   ],
+   [
+    [],
+    -1
+   ]
+  ],
+  "postlude": "class ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef _to_list(head):\n    out = []\n    while head:\n        out.append(head.val)\n        head = head.next\n    return out\n\ndef _build(vals):\n    dummy = ListNode()\n    cur = dummy\n    for v in vals:\n        cur.next = ListNode(v)\n        cur = cur.next\n    return dummy.next\n\ndef _check(vals, pos):\n    head = _build(vals)\n    if pos >= 0:\n        nodes, cur = [], head\n        while cur:\n            nodes.append(cur); cur = cur.next\n        nodes[-1].next = nodes[pos]\n    return has_cycle(head)",
+  "check": "_check",
+  "solution": "def has_cycle(head):\n    slow, fast = head, head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        if slow is fast:\n            return True\n    return False\n",
+  "func": "_check",
+  "expected": [
+   true,
+   true,
+   false,
+   false
+  ]
+ },
+ {
+  "id": "bp-reorder-list",
+  "title": "Reorder List",
+  "nc": "reorder-linked-list",
+  "difficulty": "medium",
+  "pattern": "fast-slow",
+  "statement": "Reorder L0\u2192L1\u2192\u2026\u2192Ln into L0\u2192Ln\u2192L1\u2192Ln-1\u2192\u2026 in place.",
+  "example": "1\u21922\u21923\u21924 \u2192 1\u21924\u21922\u21923",
+  "signature": "def reorder_list(head):",
+  "steps": [
+   {
+    "text": "Find the middle with slow and fast pointers",
+    "clue": "fast starts one ahead so slow stops at the end of the first half.",
+    "template": "slow, fast = head, head.____\nwhile fast and fast.next:\n    slow, fast = slow.next, fast.next.next",
+    "code": "slow, fast = head, head.next\nwhile fast and fast.next:\n    slow, fast = slow.next, fast.next.next",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "Cut the list after the middle and reverse the second half",
+    "clue": "Standard reverse with prev and cur.",
+    "template": "second, slow.next = slow.next, None\nprev = None\nwhile second:\n    nxt = second.next\n    second.next = ____\n    prev, second = second, nxt",
+    "code": "second, slow.next = slow.next, None\nprev = None\nwhile second:\n    nxt = second.next\n    second.next = prev\n    prev, second = second, nxt",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "Weave: one node from the front, one from the reversed back, alternating",
+    "clue": "Save both next pointers before rewiring.",
+    "template": "first, second = head, prev\nwhile second:\n    n1, n2 = first.next, second.____\n    first.next = second\n    second.next = n1\n    first, second = n1, n2",
+    "code": "first, second = head, prev\nwhile second:\n    n1, n2 = first.next, second.next\n    first.next = second\n    second.next = n1\n    first, second = n1, n2",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "It changes the list in place, so return nothing",
+    "clue": "Just return.",
+    "template": "return ____",
+    "code": "return None",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3,
+     4
+    ]
+   ],
+   [
+    [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   ],
+   [
+    [
+     1
+    ]
+   ],
+   [
+    [
+     1,
+     2
+    ]
+   ]
+  ],
+  "postlude": "class ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef _to_list(head):\n    out = []\n    while head:\n        out.append(head.val)\n        head = head.next\n    return out\n\ndef _build(vals):\n    dummy = ListNode()\n    cur = dummy\n    for v in vals:\n        cur.next = ListNode(v)\n        cur = cur.next\n    return dummy.next\n\ndef _check(vals):\n    head = _build(vals)\n    if head:\n        reorder_list(head)\n    return _to_list(head)",
+  "check": "_check",
+  "solution": "def reorder_list(head):\n    slow, fast = head, head.next\n    while fast and fast.next:\n        slow, fast = slow.next, fast.next.next\n    second, slow.next = slow.next, None\n    prev = None\n    while second:\n        nxt = second.next\n        second.next = prev\n        prev, second = second, nxt\n    first, second = head, prev\n    while second:\n        n1, n2 = first.next, second.next\n        first.next = second\n        second.next = n1\n        first, second = n1, n2\n    return None\n",
+  "func": "_check",
+  "expected": [
+   [
+    1,
+    4,
+    2,
+    3
+   ],
+   [
+    1,
+    5,
+    2,
+    4,
+    3
+   ],
+   [
+    1
+   ],
+   [
+    1,
+    2
+   ]
+  ]
+ },
+ {
+  "id": "bp-remove-nth",
+  "title": "Remove Nth Node From End of List",
+  "nc": "remove-node-from-end-of-linked-list",
+  "difficulty": "medium",
+  "pattern": "fast-slow",
+  "statement": "Remove the n-th node from the end of the list in one pass, and return the head.",
+  "example": "1\u21922\u21923\u21924\u21925, n = 2 \u2192 1\u21922\u21923\u21925",
+  "signature": "def remove_nth_from_end(head, n):",
+  "steps": [
+   {
+    "text": "A dummy node in front, so removing the head is not a special case",
+    "clue": "dummy.next = head.",
+    "template": "dummy = ListNode(0, ____)\nleft = dummy\nright = head",
+    "code": "dummy = ListNode(0, head)\nleft = dummy\nright = head",
+    "idioms": []
+   },
+   {
+    "text": "Move right n steps ahead",
+    "clue": "A for loop n times.",
+    "template": "for _ in range(____):\n    right = right.next",
+    "code": "for _ in range(n):\n    right = right.next",
+    "idioms": []
+   },
+   {
+    "text": "Move both until right falls off the end; left stops just before the node to remove",
+    "clue": "Walk together while right exists.",
+    "template": "while ____:\n    left = left.next\n    right = right.next",
+    "code": "while right:\n    left = left.next\n    right = right.next",
+    "idioms": []
+   },
+   {
+    "text": "Skip over the node, and return the real head",
+    "clue": "left.next jumps two ahead.",
+    "template": "left.next = left.next.____\nreturn dummy.next",
+    "code": "left.next = left.next.next\nreturn dummy.next",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    2
+   ],
+   [
+    [
+     1
+    ],
+    1
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    1
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    2
+   ]
+  ],
+  "postlude": "class ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef _to_list(head):\n    out = []\n    while head:\n        out.append(head.val)\n        head = head.next\n    return out\n\ndef _build(vals):\n    dummy = ListNode()\n    cur = dummy\n    for v in vals:\n        cur.next = ListNode(v)\n        cur = cur.next\n    return dummy.next\n\ndef _check(vals, n):\n    return _to_list(remove_nth_from_end(_build(vals), n))",
+  "check": "_check",
+  "solution": "def remove_nth_from_end(head, n):\n    dummy = ListNode(0, head)\n    left = dummy\n    right = head\n    for _ in range(n):\n        right = right.next\n    while right:\n        left = left.next\n        right = right.next\n    left.next = left.next.next\n    return dummy.next\n",
+  "func": "_check",
+  "expected": [
+   [
+    1,
+    2,
+    3,
+    5
+   ],
+   [],
+   [
+    1
+   ],
+   [
+    2
+   ]
+  ]
+ },
+ {
+  "id": "bp-add-two-numbers",
+  "title": "Add Two Numbers",
+  "nc": "add-two-numbers",
+  "difficulty": "medium",
+  "pattern": "reverse-ll",
+  "statement": "Two numbers are stored as linked lists with digits in reverse order. Return their sum as a linked list, also reversed.",
+  "example": "2\u21924\u21923 + 5\u21926\u21924 \u2192 7\u21920\u21928 (342 + 465 = 807)",
+  "signature": "def add_two_numbers(l1, l2):",
+  "steps": [
+   {
+    "text": "A dummy head, a tail pointer, and a carry of 0",
+    "clue": "Three setup lines.",
+    "template": "dummy = ListNode()\ntail = dummy\ncarry = ____",
+    "code": "dummy = ListNode()\ntail = dummy\ncarry = 0",
+    "idioms": []
+   },
+   {
+    "text": "Keep going while either list has digits or there is a carry left",
+    "clue": "Missing digits count as 0.",
+    "template": "while l1 or l2 or ____:\n    a = l1.val if l1 else 0\n    b = l2.val if l2 else 0",
+    "code": "while l1 or l2 or carry:\n    a = l1.val if l1 else 0\n    b = l2.val if l2 else 0",
+    "idioms": []
+   },
+   {
+    "text": "Add the digits, split into the new digit and the carry, and attach a node",
+    "clue": "divmod(total, 10) gives (carry, digit).",
+    "template": "    carry, digit = ____(a + b + carry, 10)\n    tail.next = ListNode(digit)\n    tail = tail.next",
+    "code": "    carry, digit = divmod(a + b + carry, 10)\n    tail.next = ListNode(digit)\n    tail = tail.next",
+    "idioms": [
+     "floor-div"
+    ]
+   },
+   {
+    "text": "Move both lists forward, and return the result after the loop",
+    "clue": "Only move a list if it still has nodes.",
+    "template": "    l1 = l1.next if l1 else None\n    l2 = l2.next if l2 else ____\nreturn dummy.next",
+    "code": "    l1 = l1.next if l1 else None\n    l2 = l2.next if l2 else None\nreturn dummy.next",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     2,
+     4,
+     3
+    ],
+    [
+     5,
+     6,
+     4
+    ]
+   ],
+   [
+    [
+     0
+    ],
+    [
+     0
+    ]
+   ],
+   [
+    [
+     9,
+     9,
+     9,
+     9
+    ],
+    [
+     9,
+     9
+    ]
+   ],
+   [
+    [
+     1
+    ],
+    [
+     9,
+     9
+    ]
+   ]
+  ],
+  "postlude": "class ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef _to_list(head):\n    out = []\n    while head:\n        out.append(head.val)\n        head = head.next\n    return out\n\ndef _build(vals):\n    dummy = ListNode()\n    cur = dummy\n    for v in vals:\n        cur.next = ListNode(v)\n        cur = cur.next\n    return dummy.next\n\ndef _check(a, b):\n    return _to_list(add_two_numbers(_build(a), _build(b)))",
+  "check": "_check",
+  "solution": "def add_two_numbers(l1, l2):\n    dummy = ListNode()\n    tail = dummy\n    carry = 0\n    while l1 or l2 or carry:\n        a = l1.val if l1 else 0\n        b = l2.val if l2 else 0\n        carry, digit = divmod(a + b + carry, 10)\n        tail.next = ListNode(digit)\n        tail = tail.next\n        l1 = l1.next if l1 else None\n        l2 = l2.next if l2 else None\n    return dummy.next\n",
+  "func": "_check",
+  "expected": [
+   [
+    7,
+    0,
+    8
+   ],
+   [
+    0
+   ],
+   [
+    8,
+    9,
+    0,
+    0,
+    1
+   ],
+   [
+    0,
+    0,
+    1
+   ]
+  ]
+ },
+ {
+  "id": "bp-find-duplicate",
+  "title": "Find the Duplicate Number",
+  "nc": "find-duplicate-integer",
+  "difficulty": "medium",
+  "pattern": "fast-slow",
+  "statement": "nums has n + 1 numbers, each from 1 to n, and exactly one value repeats. Find it without changing nums and with O(1) memory.",
+  "example": "[1, 3, 4, 2, 2] \u2192 2",
+  "signature": "def find_duplicate(nums):",
+  "steps": [
+   {
+    "text": "Treat each value as a pointer to an index; start slow and fast at 0",
+    "clue": "This turns the list into a linked list with a cycle.",
+    "template": "slow, fast = 0, ____",
+    "code": "slow, fast = 0, 0",
+    "idioms": [
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "Move slow one step and fast two steps until they meet",
+    "clue": "One step is nums[slow]; two steps is nums[nums[fast]].",
+    "template": "while True:\n    slow = nums[slow]\n    fast = nums[nums[____]]\n    if slow == fast:\n        break",
+    "code": "while True:\n    slow = nums[slow]\n    fast = nums[nums[fast]]\n    if slow == fast:\n        break",
+    "idioms": []
+   },
+   {
+    "text": "Start a second pointer at 0 and move both one step until they meet: that is the cycle start",
+    "clue": "Floyd's trick: the meeting point is the duplicate.",
+    "template": "slow2 = 0\nwhile slow2 != ____:\n    slow = nums[slow]\n    slow2 = nums[slow2]",
+    "code": "slow2 = 0\nwhile slow2 != slow:\n    slow = nums[slow]\n    slow2 = nums[slow2]",
+    "idioms": []
+   },
+   {
+    "text": "Return where they met",
+    "clue": "Either pointer.",
+    "template": "return ____",
+    "code": "return slow",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     3,
+     4,
+     2,
+     2
+    ]
+   ],
+   [
+    [
+     3,
+     1,
+     3,
+     4,
+     2
+    ]
+   ],
+   [
+    [
+     1,
+     1
+    ]
+   ],
+   [
+    [
+     2,
+     2,
+     2,
+     2
+    ]
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def find_duplicate(nums):\n    slow, fast = 0, 0\n    while True:\n        slow = nums[slow]\n        fast = nums[nums[fast]]\n        if slow == fast:\n            break\n    slow2 = 0\n    while slow2 != slow:\n        slow = nums[slow]\n        slow2 = nums[slow2]\n    return slow\n",
+  "func": "find_duplicate",
+  "expected": [
+   2,
+   3,
+   1,
+   2
+  ]
+ },
+ {
+  "id": "bp-lru-cache",
+  "title": "LRU Cache",
+  "nc": "lru-cache",
+  "difficulty": "medium",
+  "pattern": "hashing",
+  "statement": "Build an LRUCache with get(key) and put(key, value), both O(1). When over capacity, evict the least recently used key. get returns -1 for a missing key.",
+  "example": "capacity 2: put(1,1), put(2,2), get(1) \u2192 1, put(3,3) evicts 2",
+  "signature": "class LRUCache:",
+  "steps": [
+   {
+    "text": "In __init__, remember the capacity and make an OrderedDict (it keeps keys in use order)",
+    "clue": "from collections import OrderedDict at the top of __init__ works.",
+    "template": "def __init__(self, capacity):\n    from collections import OrderedDict\n    self.cap = capacity\n    self.cache = ____()",
+    "code": "def __init__(self, capacity):\n    from collections import OrderedDict\n    self.cap = capacity\n    self.cache = OrderedDict()",
+    "idioms": [
+     "defaultdict"
+    ]
+   },
+   {
+    "text": "get: missing key gives -1; otherwise mark it as most recent and return it",
+    "clue": "move_to_end(key) marks it most recent.",
+    "template": "def get(self, key):\n    if key not in self.cache:\n        return -1\n    self.cache.____(key)\n    return self.cache[key]",
+    "code": "def get(self, key):\n    if key not in self.cache:\n        return -1\n    self.cache.move_to_end(key)\n    return self.cache[key]",
+    "idioms": [
+     "in-check"
+    ]
+   },
+   {
+    "text": "put: store the value and mark it most recent",
+    "clue": "Set it, then move_to_end.",
+    "template": "def put(self, key, value):\n    self.cache[key] = value\n    self.cache.move_to_end(____)",
+    "code": "def put(self, key, value):\n    self.cache[key] = value\n    self.cache.move_to_end(key)",
+    "idioms": []
+   },
+   {
+    "text": "If over capacity, drop the oldest key (the first one)",
+    "clue": "popitem(last=False) removes the oldest.",
+    "template": "    if len(self.cache) > self.cap:\n        self.cache.popitem(last=____)",
+    "code": "    if len(self.cache) > self.cap:\n        self.cache.popitem(last=False)",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    2,
+    [
+     "put",
+     "put",
+     "get",
+     "put",
+     "get",
+     "put",
+     "get",
+     "get",
+     "get"
+    ],
+    [
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      2
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      1
+     ],
+     [
+      3
+     ],
+     [
+      4
+     ]
+    ]
+   ],
+   [
+    1,
+    [
+     "put",
+     "get",
+     "put",
+     "get",
+     "get"
+    ],
+    [
+     [
+      2,
+      1
+     ],
+     [
+      2
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      2
+     ],
+     [
+      3
+     ]
+    ]
+   ]
+  ],
+  "postlude": "def _check(cap, ops, args):\n    c, out = LRUCache(cap), []\n    for op, a in zip(ops, args):\n        out.append(getattr(c, op)(*a))\n    return out",
+  "check": "_check",
+  "solution": "class LRUCache:\n    def __init__(self, capacity):\n        from collections import OrderedDict\n        self.cap = capacity\n        self.cache = OrderedDict()\n    def get(self, key):\n        if key not in self.cache:\n            return -1\n        self.cache.move_to_end(key)\n        return self.cache[key]\n    def put(self, key, value):\n        self.cache[key] = value\n        self.cache.move_to_end(key)\n        if len(self.cache) > self.cap:\n            self.cache.popitem(last=False)\n",
+  "func": "_check",
+  "expected": [
+   [
+    null,
+    null,
+    1,
+    null,
+    -1,
+    null,
+    -1,
+    3,
+    4
+   ],
+   [
+    null,
+    1,
+    null,
+    -1,
+    2
+   ]
+  ]
+ },
+ {
+  "id": "bp-min-stack",
+  "title": "Min Stack",
+  "nc": "minimum-stack",
+  "difficulty": "medium",
+  "pattern": "monotonic-stack",
+  "statement": "Build a MinStack with push, pop, top and getMin, all O(1).",
+  "example": "push(-2), push(0), push(-3), getMin() \u2192 -3, pop(), getMin() \u2192 -2",
+  "signature": "class MinStack:",
+  "steps": [
+   {
+    "text": "In __init__, one stack for values and one for the minimum at each level",
+    "clue": "Two empty lists.",
+    "template": "def __init__(self):\n    self.stack = []\n    self.mins = ____",
+    "code": "def __init__(self):\n    self.stack = []\n    self.mins = []",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "push adds the value, and the smaller of it and the current minimum",
+    "clue": "If mins is empty, the value itself is the minimum.",
+    "template": "def push(self, val):\n    self.stack.append(val)\n    self.mins.append(min(val, self.mins[-1]) if self.____ else val)",
+    "code": "def push(self, val):\n    self.stack.append(val)\n    self.mins.append(min(val, self.mins[-1]) if self.mins else val)",
+    "idioms": [
+     "stack",
+     "max-min"
+    ]
+   },
+   {
+    "text": "pop removes from both stacks",
+    "clue": "Two .pop() calls.",
+    "template": "def pop(self):\n    self.stack.pop()\n    self.mins.____()",
+    "code": "def pop(self):\n    self.stack.pop()\n    self.mins.pop()",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "top and getMin just read the last item of each",
+    "clue": "stack[-1] is the top.",
+    "template": "def top(self):\n    return self.stack[____]\n\ndef getMin(self):\n    return self.mins[-1]",
+    "code": "def top(self):\n    return self.stack[-1]\n\ndef getMin(self):\n    return self.mins[-1]",
+    "idioms": [
+     "stack"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     "push",
+     "push",
+     "push",
+     "getMin",
+     "pop",
+     "top",
+     "getMin"
+    ],
+    [
+     [
+      -2
+     ],
+     [
+      0
+     ],
+     [
+      -3
+     ],
+     [],
+     [],
+     [],
+     []
+    ]
+   ],
+   [
+    [
+     "push",
+     "getMin",
+     "push",
+     "getMin"
+    ],
+    [
+     [
+      5
+     ],
+     [],
+     [
+      7
+     ],
+     []
+    ]
+   ]
+  ],
+  "postlude": "def _check(ops, args):\n    st, out = MinStack(), []\n    for op, a in zip(ops, args):\n        out.append(getattr(st, op)(*a))\n    return out",
+  "check": "_check",
+  "solution": "class MinStack:\n    def __init__(self):\n        self.stack = []\n        self.mins = []\n    def push(self, val):\n        self.stack.append(val)\n        self.mins.append(min(val, self.mins[-1]) if self.mins else val)\n    def pop(self):\n        self.stack.pop()\n        self.mins.pop()\n    def top(self):\n        return self.stack[-1]\n\n    def getMin(self):\n        return self.mins[-1]\n",
+  "func": "_check",
+  "expected": [
+   [
+    null,
+    null,
+    null,
+    -3,
+    null,
+    0,
+    -2
+   ],
+   [
+    null,
+    5,
+    null,
+    5
+   ]
+  ]
+ },
+ {
+  "id": "bp-eval-rpn",
+  "title": "Evaluate Reverse Polish Notation",
+  "nc": "evaluate-reverse-polish-notation",
+  "difficulty": "medium",
+  "pattern": "monotonic-stack",
+  "statement": "Evaluate an expression in reverse Polish notation with + - * /. Division truncates toward zero.",
+  "example": "[\"2\",\"1\",\"+\",\"3\",\"*\"] \u2192 9",
+  "signature": "def eval_rpn(tokens):",
+  "steps": [
+   {
+    "text": "Make a stack and loop over the tokens",
+    "clue": "An empty list.",
+    "template": "stack = ____\nfor t in tokens:",
+    "code": "stack = []\nfor t in tokens:",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "A number goes straight onto the stack",
+    "clue": "Anything that is not one of the four operators is a number: int(t).",
+    "template": "    if t not in \"+-*/\":\n        stack.append(____(t))\n        continue",
+    "code": "    if t not in \"+-*/\":\n        stack.append(int(t))\n        continue",
+    "idioms": [
+     "stack",
+     "in-check"
+    ]
+   },
+   {
+    "text": "An operator pops two numbers; the second pop is the LEFT operand",
+    "clue": "b = pop(), then a = pop(), then compute a op b. int(a / b) truncates toward zero.",
+    "template": "    b, a = stack.pop(), stack.____()\n    if t == \"+\": stack.append(a + b)\n    elif t == \"-\": stack.append(a - b)\n    elif t == \"*\": stack.append(a * b)\n    else: stack.append(int(a / b))",
+    "code": "    b, a = stack.pop(), stack.pop()\n    if t == \"+\": stack.append(a + b)\n    elif t == \"-\": stack.append(a - b)\n    elif t == \"*\": stack.append(a * b)\n    else: stack.append(int(a / b))",
+    "idioms": [
+     "stack",
+     "multi-assign"
+    ]
+   },
+   {
+    "text": "The answer is the one value left",
+    "clue": "stack[0] or stack[-1].",
+    "template": "return stack[____]",
+    "code": "return stack[0]",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     "2",
+     "1",
+     "+",
+     "3",
+     "*"
+    ]
+   ],
+   [
+    [
+     "4",
+     "13",
+     "5",
+     "/",
+     "+"
+    ]
+   ],
+   [
+    [
+     "10",
+     "6",
+     "9",
+     "3",
+     "+",
+     "-11",
+     "*",
+     "/",
+     "*",
+     "17",
+     "+",
+     "5",
+     "+"
+    ]
+   ],
+   [
+    [
+     "3",
+     "-4",
+     "/"
+    ]
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def eval_rpn(tokens):\n    stack = []\n    for t in tokens:\n        if t not in \"+-*/\":\n            stack.append(int(t))\n            continue\n        b, a = stack.pop(), stack.pop()\n        if t == \"+\": stack.append(a + b)\n        elif t == \"-\": stack.append(a - b)\n        elif t == \"*\": stack.append(a * b)\n        else: stack.append(int(a / b))\n    return stack[0]\n",
+  "func": "eval_rpn",
+  "expected": [
+   9,
+   6,
+   22,
+   0
+  ]
+ },
+ {
+  "id": "bp-generate-parens",
+  "title": "Generate Parentheses",
+  "nc": "generate-parentheses",
+  "difficulty": "medium",
+  "pattern": "backtracking",
+  "statement": "Return every valid string of n pairs of parentheses.",
+  "example": "n = 3 \u2192 [\"((()))\",\"(()())\",\"(())()\",\"()(())\",\"()()()\"]",
+  "signature": "def generate_parenthesis(n):",
+  "steps": [
+   {
+    "text": "Results list and a helper that tracks how many ( and ) are used",
+    "clue": "The helper builds the string as it goes.",
+    "template": "res = ____\ndef bt(cur, opened, closed):",
+    "code": "res = []\ndef bt(cur, opened, closed):",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "When both counts reach n, the string is complete",
+    "clue": "Save it and return.",
+    "template": "    if opened == closed == ____:\n        res.append(cur)\n        return",
+    "code": "    if opened == closed == n:\n        res.append(cur)\n        return",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "You can add ( while fewer than n are open, and ) while fewer ) than ( are used",
+    "clue": "Two separate ifs, both may happen.",
+    "template": "    if opened < n:\n        bt(cur + \"(\", opened + 1, closed)\n    if closed < ____:\n        bt(cur + \")\", opened, closed + 1)",
+    "code": "    if opened < n:\n        bt(cur + \"(\", opened + 1, closed)\n    if closed < opened:\n        bt(cur + \")\", opened, closed + 1)",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "Start empty and return the results",
+    "clue": "bt(\"\", 0, 0).",
+    "template": "bt(\"\", 0, ____)\nreturn res",
+    "code": "bt(\"\", 0, 0)\nreturn res",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    3
+   ],
+   [
+    1
+   ],
+   [
+    2
+   ]
+  ],
+  "postlude": "def _check(n):\n    return sorted(generate_parenthesis(n))",
+  "check": "_check",
+  "solution": "def generate_parenthesis(n):\n    res = []\n    def bt(cur, opened, closed):\n        if opened == closed == n:\n            res.append(cur)\n            return\n        if opened < n:\n            bt(cur + \"(\", opened + 1, closed)\n        if closed < opened:\n            bt(cur + \")\", opened, closed + 1)\n    bt(\"\", 0, 0)\n    return res\n",
+  "func": "_check",
+  "expected": [
+   [
+    "((()))",
+    "(()())",
+    "(())()",
+    "()(())",
+    "()()()"
+   ],
+   [
+    "()"
+   ],
+   [
+    "(())",
+    "()()"
+   ]
+  ]
+ },
+ {
+  "id": "bp-car-fleet",
+  "title": "Car Fleet",
+  "nc": "car-fleet",
+  "difficulty": "medium",
+  "pattern": "monotonic-stack",
+  "statement": "Cars drive toward target on one lane and can't pass. A car that catches up joins the slower fleet. Return how many fleets arrive.",
+  "example": "target 12, position [10,8,0,5,3], speed [2,4,1,1,3] \u2192 3",
+  "signature": "def car_fleet(target, position, speed):",
+  "steps": [
+   {
+    "text": "Pair each car's position with its speed, sorted from closest to the target first",
+    "clue": "sorted(zip(...), reverse=True).",
+    "template": "cars = sorted(zip(position, speed), reverse=____)\nstack = []",
+    "code": "cars = sorted(zip(position, speed), reverse=True)\nstack = []",
+    "idioms": [
+     "sort",
+     "stack"
+    ]
+   },
+   {
+    "text": "For each car, work out the time it needs to reach the target",
+    "clue": "Time is distance over speed.",
+    "template": "for p, s in cars:\n    time = (target - p) / ____",
+    "code": "for p, s in cars:\n    time = (target - p) / s",
+    "idioms": []
+   },
+   {
+    "text": "If it needs MORE time than the fleet ahead, it can't catch it: it starts a new fleet",
+    "clue": "Compare with stack[-1], the slowest fleet ahead so far.",
+    "template": "    if not stack or time > stack[____]:\n        stack.append(time)",
+    "code": "    if not stack or time > stack[-1]:\n        stack.append(time)",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "The number of fleets is the stack size",
+    "clue": "len().",
+    "template": "return ____(stack)",
+    "code": "return len(stack)",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    12,
+    [
+     10,
+     8,
+     0,
+     5,
+     3
+    ],
+    [
+     2,
+     4,
+     1,
+     1,
+     3
+    ]
+   ],
+   [
+    10,
+    [
+     3
+    ],
+    [
+     3
+    ]
+   ],
+   [
+    100,
+    [
+     0,
+     2,
+     4
+    ],
+    [
+     4,
+     2,
+     1
+    ]
+   ]
+  ],
+  "postlude": "",
+  "check": null,
+  "solution": "def car_fleet(target, position, speed):\n    cars = sorted(zip(position, speed), reverse=True)\n    stack = []\n    for p, s in cars:\n        time = (target - p) / s\n        if not stack or time > stack[-1]:\n            stack.append(time)\n    return len(stack)\n",
+  "func": "car_fleet",
+  "expected": [
+   3,
+   1,
+   1
+  ]
+ },
+ {
+  "id": "bp-diameter",
+  "title": "Diameter of Binary Tree",
+  "nc": "binary-tree-diameter",
+  "difficulty": "easy",
+  "pattern": "tree-traversal",
+  "statement": "Return the number of edges on the longest path between any two nodes.",
+  "example": "[1,2,3,4,5] \u2192 3",
+  "signature": "def diameter_of_binary_tree(root):",
+  "steps": [
+   {
+    "text": "Keep the best answer in a list so the helper can update it",
+    "clue": "A one item list is easy to change inside a nested function.",
+    "template": "best = [____]",
+    "code": "best = [0]",
+    "idioms": []
+   },
+   {
+    "text": "A helper returns the height of a subtree; empty is 0",
+    "clue": "Base case first.",
+    "template": "def height(node):\n    if not node:\n        return ____",
+    "code": "def height(node):\n    if not node:\n        return 0",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "Get both heights; the longest path through this node is their sum",
+    "clue": "Update best[0] with max.",
+    "template": "    l, r = height(node.left), height(node.right)\n    best[0] = max(best[0], l + ____)\n    return 1 + max(l, r)",
+    "code": "    l, r = height(node.left), height(node.right)\n    best[0] = max(best[0], l + r)\n    return 1 + max(l, r)",
+    "idioms": [
+     "recursion",
+     "max-min"
+    ]
+   },
+   {
+    "text": "Run it from the root and return the best",
+    "clue": "Call, then return best[0].",
+    "template": "height(root)\nreturn best[____]",
+    "code": "height(root)\nreturn best[0]",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   ],
+   [
+    [
+     1,
+     2
+    ]
+   ],
+   [
+    []
+   ],
+   [
+    [
+     1
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals):\n    return diameter_of_binary_tree(_tree(vals))",
+  "check": "_check",
+  "solution": "def diameter_of_binary_tree(root):\n    best = [0]\n    def height(node):\n        if not node:\n            return 0\n        l, r = height(node.left), height(node.right)\n        best[0] = max(best[0], l + r)\n        return 1 + max(l, r)\n    height(root)\n    return best[0]\n",
+  "func": "_check",
+  "expected": [
+   3,
+   1,
+   0,
+   0
+  ]
+ },
+ {
+  "id": "bp-balanced",
+  "title": "Balanced Binary Tree",
+  "nc": "balanced-binary-tree",
+  "difficulty": "easy",
+  "pattern": "tree-traversal",
+  "statement": "A tree is balanced if, at every node, the left and right heights differ by at most 1.",
+  "example": "[3,9,20,null,null,15,7] \u2192 True",
+  "signature": "def is_balanced(root):",
+  "steps": [
+   {
+    "text": "A helper returns the height, or -1 as soon as anything below is unbalanced",
+    "clue": "Empty tree has height 0.",
+    "template": "def check(node):\n    if not node:\n        return ____",
+    "code": "def check(node):\n    if not node:\n        return 0",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "Check both sides; pass -1 straight up if either is unbalanced",
+    "clue": "Return early so you don't do extra work.",
+    "template": "    l = check(node.left)\n    r = check(node.right)\n    if l == -1 or r == ____:\n        return -1",
+    "code": "    l = check(node.left)\n    r = check(node.right)\n    if l == -1 or r == -1:\n        return -1",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "If the heights differ by more than 1, it's unbalanced; otherwise return the height",
+    "clue": "abs() of the difference.",
+    "template": "    if ____(l - r) > 1:\n        return -1\n    return 1 + max(l, r)",
+    "code": "    if abs(l - r) > 1:\n        return -1\n    return 1 + max(l, r)",
+    "idioms": [
+     "max-min"
+    ]
+   },
+   {
+    "text": "Balanced means the helper didn't return -1",
+    "clue": "Compare with != -1.",
+    "template": "return check(root) != ____",
+    "code": "return check(root) != -1",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     9,
+     20,
+     null,
+     null,
+     15,
+     7
+    ]
+   ],
+   [
+    [
+     1,
+     2,
+     2,
+     3,
+     3,
+     null,
+     null,
+     4,
+     4
+    ]
+   ],
+   [
+    []
+   ],
+   [
+    [
+     1,
+     2
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals):\n    return is_balanced(_tree(vals))",
+  "check": "_check",
+  "solution": "def is_balanced(root):\n    def check(node):\n        if not node:\n            return 0\n        l = check(node.left)\n        r = check(node.right)\n        if l == -1 or r == -1:\n            return -1\n        if abs(l - r) > 1:\n            return -1\n        return 1 + max(l, r)\n    return check(root) != -1\n",
+  "func": "_check",
+  "expected": [
+   true,
+   false,
+   true,
+   true
+  ]
+ },
+ {
+  "id": "bp-same-tree",
+  "title": "Same Tree",
+  "nc": "same-binary-tree",
+  "difficulty": "easy",
+  "pattern": "tree-traversal",
+  "statement": "Return True if two binary trees have the same shape and the same values.",
+  "example": "[1,2,3] and [1,2,3] \u2192 True",
+  "signature": "def is_same_tree(p, q):",
+  "steps": [
+   {
+    "text": "Both empty: the same",
+    "clue": "not p and not q.",
+    "template": "if not p and not ____:\n    return True",
+    "code": "if not p and not q:\n    return True",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "Only one empty: different",
+    "clue": "After the first check, \"not p or not q\" means exactly one is empty.",
+    "template": "if not p or not ____:\n    return False",
+    "code": "if not p or not q:\n    return False",
+    "idioms": []
+   },
+   {
+    "text": "Different values: different",
+    "clue": "Compare .val.",
+    "template": "if p.val != q.____:\n    return False",
+    "code": "if p.val != q.val:\n    return False",
+    "idioms": []
+   },
+   {
+    "text": "Otherwise both left subtrees and both right subtrees must match",
+    "clue": "Two recursive calls joined with and.",
+    "template": "return is_same_tree(p.left, q.left) and is_same_tree(p.____, q.right)",
+    "code": "return is_same_tree(p.left, q.left) and is_same_tree(p.right, q.right)",
+    "idioms": [
+     "recursion"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3
+    ],
+    [
+     1,
+     2,
+     3
+    ]
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     null,
+     2
+    ]
+   ],
+   [
+    [
+     1,
+     2,
+     1
+    ],
+    [
+     1,
+     1,
+     2
+    ]
+   ],
+   [
+    [],
+    []
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(a, b):\n    return is_same_tree(_tree(a), _tree(b))",
+  "check": "_check",
+  "solution": "def is_same_tree(p, q):\n    if not p and not q:\n        return True\n    if not p or not q:\n        return False\n    if p.val != q.val:\n        return False\n    return is_same_tree(p.left, q.left) and is_same_tree(p.right, q.right)\n",
+  "func": "_check",
+  "expected": [
+   true,
+   false,
+   false,
+   true
+  ]
+ },
+ {
+  "id": "bp-subtree",
+  "title": "Subtree of Another Tree",
+  "nc": "subtree-of-a-binary-tree",
+  "difficulty": "easy",
+  "pattern": "tree-traversal",
+  "statement": "Return True if subRoot appears inside root as a whole subtree (same shape and values).",
+  "example": "root [3,4,5,1,2], subRoot [4,1,2] \u2192 True",
+  "signature": "def is_subtree(root, sub):",
+  "steps": [
+   {
+    "text": "A helper that checks if two trees are identical",
+    "clue": "Same as the Same Tree problem.",
+    "template": "def same(a, b):\n    if not a and not b:\n        return True\n    if not a or not b or a.val != b.val:\n        return ____\n    return same(a.left, b.left) and same(a.right, b.right)",
+    "code": "def same(a, b):\n    if not a and not b:\n        return True\n    if not a or not b or a.val != b.val:\n        return False\n    return same(a.left, b.left) and same(a.right, b.right)",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "An empty sub is always a subtree; an empty root can't contain a non-empty one",
+    "clue": "Check sub first.",
+    "template": "if not sub:\n    return True\nif not ____:\n    return False",
+    "code": "if not sub:\n    return True\nif not root:\n    return False",
+    "idioms": []
+   },
+   {
+    "text": "If the tree starting here matches, done",
+    "clue": "Call the helper on root and sub.",
+    "template": "if same(root, ____):\n    return True",
+    "code": "if same(root, sub):\n    return True",
+    "idioms": []
+   },
+   {
+    "text": "Otherwise look for it in the left or right subtree",
+    "clue": "Recurse on both sides with or.",
+    "template": "return is_subtree(root.left, sub) ____ is_subtree(root.right, sub)",
+    "code": "return is_subtree(root.left, sub) or is_subtree(root.right, sub)",
+    "idioms": [
+     "recursion"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     4,
+     5,
+     1,
+     2
+    ],
+    [
+     4,
+     1,
+     2
+    ]
+   ],
+   [
+    [
+     3,
+     4,
+     5,
+     1,
+     2,
+     null,
+     null,
+     null,
+     null,
+     0
+    ],
+    [
+     4,
+     1,
+     2
+    ]
+   ],
+   [
+    [
+     1,
+     1
+    ],
+    [
+     1
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(a, b):\n    return is_subtree(_tree(a), _tree(b))",
+  "check": "_check",
+  "solution": "def is_subtree(root, sub):\n    def same(a, b):\n        if not a and not b:\n            return True\n        if not a or not b or a.val != b.val:\n            return False\n        return same(a.left, b.left) and same(a.right, b.right)\n    if not sub:\n        return True\n    if not root:\n        return False\n    if same(root, sub):\n        return True\n    return is_subtree(root.left, sub) or is_subtree(root.right, sub)\n",
+  "func": "_check",
+  "expected": [
+   true,
+   false,
+   true
+  ]
+ },
+ {
+  "id": "bp-lca-bst",
+  "title": "Lowest Common Ancestor of a BST",
+  "nc": "lowest-common-ancestor-in-binary-search-tree",
+  "difficulty": "medium",
+  "pattern": "tree-traversal",
+  "statement": "In a binary search tree, return the value of the lowest node that has both p and q below it (a node counts as below itself).",
+  "example": "BST [6,2,8,0,4,7,9,null,null,3,5], p 2, q 8 \u2192 6",
+  "signature": "def lowest_common_ancestor(root, p, q):",
+  "steps": [
+   {
+    "text": "Start at the root and walk down",
+    "clue": "A loop, no recursion needed.",
+    "template": "cur = ____\nwhile cur:",
+    "code": "cur = root\nwhile cur:",
+    "idioms": []
+   },
+   {
+    "text": "If both values are bigger, the answer is in the right subtree",
+    "clue": "In a BST, bigger values live on the right.",
+    "template": "    if p > cur.val and q > cur.val:\n        cur = cur.____",
+    "code": "    if p > cur.val and q > cur.val:\n        cur = cur.right",
+    "idioms": []
+   },
+   {
+    "text": "If both are smaller, go left",
+    "clue": "Mirror image.",
+    "template": "    elif p < cur.val and q < cur.val:\n        cur = cur.____",
+    "code": "    elif p < cur.val and q < cur.val:\n        cur = cur.left",
+    "idioms": []
+   },
+   {
+    "text": "Otherwise they split here (or one IS this node): this is the answer",
+    "clue": "Return its value.",
+    "template": "    else:\n        return cur.____",
+    "code": "    else:\n        return cur.val",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     6,
+     2,
+     8,
+     0,
+     4,
+     7,
+     9,
+     null,
+     null,
+     3,
+     5
+    ],
+    2,
+    8
+   ],
+   [
+    [
+     6,
+     2,
+     8,
+     0,
+     4,
+     7,
+     9,
+     null,
+     null,
+     3,
+     5
+    ],
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     1
+    ],
+    2,
+    1
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals, p, q):\n    return lowest_common_ancestor(_tree(vals), p, q)",
+  "check": "_check",
+  "solution": "def lowest_common_ancestor(root, p, q):\n    cur = root\n    while cur:\n        if p > cur.val and q > cur.val:\n            cur = cur.right\n        elif p < cur.val and q < cur.val:\n            cur = cur.left\n        else:\n            return cur.val\n",
+  "func": "_check",
+  "expected": [
+   6,
+   2,
+   2
+  ]
+ },
+ {
+  "id": "bp-level-order",
+  "title": "Binary Tree Level Order Traversal",
+  "nc": "level-order-traversal-of-binary-tree",
+  "difficulty": "medium",
+  "pattern": "bfs",
+  "statement": "Return the node values level by level, left to right.",
+  "example": "[3,9,20,null,null,15,7] \u2192 [[3],[9,20],[15,7]]",
+  "signature": "def level_order(root):",
+  "steps": [
+   {
+    "text": "Results list and a queue that starts with the root (if there is one)",
+    "clue": "deque([root]) if root else deque().",
+    "template": "from collections import deque\nres = []\nq = ____([root] if root else [])",
+    "code": "from collections import deque\nres = []\nq = deque([root] if root else [])",
+    "idioms": [
+     "deque"
+    ]
+   },
+   {
+    "text": "While the queue has nodes, take exactly one level: as many nodes as are in the queue now",
+    "clue": "len(q) at the start of the loop is this level's size.",
+    "template": "while q:\n    level = []\n    for _ in range(____(q)):",
+    "code": "while q:\n    level = []\n    for _ in range(len(q)):",
+    "idioms": [
+     "deque"
+    ]
+   },
+   {
+    "text": "Pop each node, record its value, and queue its children",
+    "clue": "popleft() takes from the front.",
+    "template": "        node = q.____()\n        level.append(node.val)\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.right)",
+    "code": "        node = q.popleft()\n        level.append(node.val)\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.right)",
+    "idioms": [
+     "deque"
+    ]
+   },
+   {
+    "text": "Save the level, and return all levels at the end",
+    "clue": "Append the list after the inner loop.",
+    "template": "    res.append(____)\nreturn res",
+    "code": "    res.append(level)\nreturn res",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     9,
+     20,
+     null,
+     null,
+     15,
+     7
+    ]
+   ],
+   [
+    [
+     1
+    ]
+   ],
+   [
+    []
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals):\n    return level_order(_tree(vals))",
+  "check": "_check",
+  "solution": "def level_order(root):\n    from collections import deque\n    res = []\n    q = deque([root] if root else [])\n    while q:\n        level = []\n        for _ in range(len(q)):\n            node = q.popleft()\n            level.append(node.val)\n            if node.left: q.append(node.left)\n            if node.right: q.append(node.right)\n        res.append(level)\n    return res\n",
+  "func": "_check",
+  "expected": [
+   [
+    [
+     3
+    ],
+    [
+     9,
+     20
+    ],
+    [
+     15,
+     7
+    ]
+   ],
+   [
+    [
+     1
+    ]
+   ],
+   []
+  ]
+ },
+ {
+  "id": "bp-right-side",
+  "title": "Binary Tree Right Side View",
+  "nc": "binary-tree-right-side-view",
+  "difficulty": "medium",
+  "pattern": "bfs",
+  "statement": "Return the values you would see standing on the right side of the tree, top to bottom.",
+  "example": "[1,2,3,null,5,null,4] \u2192 [1,3,4]",
+  "signature": "def right_side_view(root):",
+  "steps": [
+   {
+    "text": "Results and a queue starting with the root",
+    "clue": "Same start as level order.",
+    "template": "from collections import deque\nres = []\nq = deque([root] if root else ____)",
+    "code": "from collections import deque\nres = []\nq = deque([root] if root else [])",
+    "idioms": [
+     "deque"
+    ]
+   },
+   {
+    "text": "Process one level at a time",
+    "clue": "Loop len(q) times.",
+    "template": "while q:\n    for i in range(____(q)):",
+    "code": "while q:\n    for i in range(len(q)):",
+    "idioms": [
+     "deque"
+    ]
+   },
+   {
+    "text": "Pop each node and queue its children, left then right",
+    "clue": "popleft().",
+    "template": "        node = q.popleft()\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.____)",
+    "code": "        node = q.popleft()\n        if node.left: q.append(node.left)\n        if node.right: q.append(node.right)",
+    "idioms": [
+     "deque"
+    ]
+   },
+   {
+    "text": "The last node popped in each level is the one you see; return the list at the end",
+    "clue": "After the inner loop, node is the last one of the level.",
+    "template": "    res.append(node.____)\nreturn res",
+    "code": "    res.append(node.val)\nreturn res",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     1,
+     2,
+     3,
+     null,
+     5,
+     null,
+     4
+    ]
+   ],
+   [
+    [
+     1,
+     null,
+     3
+    ]
+   ],
+   [
+    []
+   ],
+   [
+    [
+     1,
+     2
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals):\n    return right_side_view(_tree(vals))",
+  "check": "_check",
+  "solution": "def right_side_view(root):\n    from collections import deque\n    res = []\n    q = deque([root] if root else [])\n    while q:\n        for i in range(len(q)):\n            node = q.popleft()\n            if node.left: q.append(node.left)\n            if node.right: q.append(node.right)\n        res.append(node.val)\n    return res\n",
+  "func": "_check",
+  "expected": [
+   [
+    1,
+    3,
+    4
+   ],
+   [
+    1,
+    3
+   ],
+   [],
+   [
+    1,
+    2
+   ]
+  ]
+ },
+ {
+  "id": "bp-good-nodes",
+  "title": "Count Good Nodes in Binary Tree",
+  "nc": "count-good-nodes-in-binary-tree",
+  "difficulty": "medium",
+  "pattern": "dfs",
+  "statement": "A node is good if no node on the path from the root to it has a bigger value. Count the good nodes.",
+  "example": "[3,1,4,3,null,1,5] \u2192 4",
+  "signature": "def good_nodes(root):",
+  "steps": [
+   {
+    "text": "A helper that carries the biggest value seen on the path so far",
+    "clue": "Empty node adds 0.",
+    "template": "def dfs(node, top):\n    if not node:\n        return ____",
+    "code": "def dfs(node, top):\n    if not node:\n        return 0",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "This node is good if it is at least as big as everything above it",
+    "clue": "1 if good else 0.",
+    "template": "    good = 1 if node.val >= ____ else 0",
+    "code": "    good = 1 if node.val >= top else 0",
+    "idioms": []
+   },
+   {
+    "text": "Update the path max and add the counts from both children",
+    "clue": "max(top, node.val) is the new path max.",
+    "template": "    top = max(top, node.____)\n    return good + dfs(node.left, top) + dfs(node.right, top)",
+    "code": "    top = max(top, node.val)\n    return good + dfs(node.left, top) + dfs(node.right, top)",
+    "idioms": [
+     "recursion",
+     "max-min"
+    ]
+   },
+   {
+    "text": "Start at the root with its own value as the max",
+    "clue": "The root is always good.",
+    "template": "return dfs(root, root.val) if root else ____",
+    "code": "return dfs(root, root.val) if root else 0",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     1,
+     4,
+     3,
+     null,
+     1,
+     5
+    ]
+   ],
+   [
+    [
+     3,
+     3,
+     null,
+     4,
+     2
+    ]
+   ],
+   [
+    [
+     1
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals):\n    return good_nodes(_tree(vals))",
+  "check": "_check",
+  "solution": "def good_nodes(root):\n    def dfs(node, top):\n        if not node:\n            return 0\n        good = 1 if node.val >= top else 0\n        top = max(top, node.val)\n        return good + dfs(node.left, top) + dfs(node.right, top)\n    return dfs(root, root.val) if root else 0\n",
+  "func": "_check",
+  "expected": [
+   4,
+   3,
+   1
+  ]
+ },
+ {
+  "id": "bp-validate-bst",
+  "title": "Validate Binary Search Tree",
+  "nc": "valid-binary-search-tree",
+  "difficulty": "medium",
+  "pattern": "dfs",
+  "statement": "Return True if the tree is a valid BST: every node is bigger than everything in its left subtree and smaller than everything in its right subtree.",
+  "example": "[5,1,4,null,null,3,6] \u2192 False",
+  "signature": "def is_valid_bst(root):",
+  "steps": [
+   {
+    "text": "A helper that carries the allowed range (low, high) for each node",
+    "clue": "An empty node is always valid.",
+    "template": "def ok(node, low, high):\n    if not node:\n        return ____",
+    "code": "def ok(node, low, high):\n    if not node:\n        return True",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "The node must be strictly inside its range",
+    "clue": "Equal values are not allowed.",
+    "template": "    if not (low < node.val < ____):\n        return False",
+    "code": "    if not (low < node.val < high):\n        return False",
+    "idioms": []
+   },
+   {
+    "text": "Left children must be below this value, right children above it",
+    "clue": "Tighten one bound on each side.",
+    "template": "    return ok(node.left, low, node.val) and ok(node.right, node.____, high)",
+    "code": "    return ok(node.left, low, node.val) and ok(node.right, node.val, high)",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "Start with no limits",
+    "clue": "float('-inf') and float('inf').",
+    "template": "return ok(root, float('-inf'), float('____'))",
+    "code": "return ok(root, float('-inf'), float('inf'))",
+    "idioms": [
+     "infinity"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     2,
+     1,
+     3
+    ]
+   ],
+   [
+    [
+     5,
+     1,
+     4,
+     null,
+     null,
+     3,
+     6
+    ]
+   ],
+   [
+    [
+     5,
+     4,
+     6,
+     null,
+     null,
+     3,
+     7
+    ]
+   ],
+   [
+    [
+     1,
+     1
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals):\n    return is_valid_bst(_tree(vals))",
+  "check": "_check",
+  "solution": "def is_valid_bst(root):\n    def ok(node, low, high):\n        if not node:\n            return True\n        if not (low < node.val < high):\n            return False\n        return ok(node.left, low, node.val) and ok(node.right, node.val, high)\n    return ok(root, float('-inf'), float('inf'))\n",
+  "func": "_check",
+  "expected": [
+   true,
+   false,
+   false,
+   false
+  ]
+ },
+ {
+  "id": "bp-kth-smallest-bst",
+  "title": "Kth Smallest Element in a BST",
+  "nc": "kth-smallest-integer-in-bst",
+  "difficulty": "medium",
+  "pattern": "dfs",
+  "statement": "Return the k-th smallest value in a BST (1-indexed).",
+  "example": "[3,1,4,null,2], k = 1 \u2192 1",
+  "signature": "def kth_smallest(root, k):",
+  "steps": [
+   {
+    "text": "In-order traversal visits a BST in sorted order; do it with a stack",
+    "clue": "cur starts at root.",
+    "template": "stack, cur = [], ____",
+    "code": "stack, cur = [], root",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "Go as far left as possible, pushing nodes on the way",
+    "clue": "The smallest unvisited value is the leftmost.",
+    "template": "while stack or cur:\n    while cur:\n        stack.append(cur)\n        cur = cur.____",
+    "code": "while stack or cur:\n    while cur:\n        stack.append(cur)\n        cur = cur.left",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "Pop the next smallest; count it, and stop at the k-th",
+    "clue": "k -= 1 each visit.",
+    "template": "    cur = stack.pop()\n    k -= 1\n    if k == ____:\n        return cur.val",
+    "code": "    cur = stack.pop()\n    k -= 1\n    if k == 0:\n        return cur.val",
+    "idioms": [
+     "stack"
+    ]
+   },
+   {
+    "text": "Then continue into its right subtree",
+    "clue": "cur = cur.right.",
+    "template": "    cur = cur.____",
+    "code": "    cur = cur.right",
+    "idioms": []
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     1,
+     4,
+     null,
+     2
+    ],
+    1
+   ],
+   [
+    [
+     5,
+     3,
+     6,
+     2,
+     4,
+     null,
+     null,
+     1
+    ],
+    3
+   ],
+   [
+    [
+     1
+    ],
+    1
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(vals, k):\n    return kth_smallest(_tree(vals), k)",
+  "check": "_check",
+  "solution": "def kth_smallest(root, k):\n    stack, cur = [], root\n    while stack or cur:\n        while cur:\n            stack.append(cur)\n            cur = cur.left\n        cur = stack.pop()\n        k -= 1\n        if k == 0:\n            return cur.val\n        cur = cur.right\n",
+  "func": "_check",
+  "expected": [
+   1,
+   3,
+   1
+  ]
+ },
+ {
+  "id": "bp-build-tree",
+  "title": "Construct Binary Tree from Preorder and Inorder",
+  "nc": "binary-tree-from-preorder-and-inorder-traversal",
+  "difficulty": "medium",
+  "pattern": "dfs",
+  "statement": "Rebuild a binary tree (unique values) from its preorder and inorder lists.",
+  "example": "pre [3,9,20,15,7], in [9,3,15,20,7] \u2192 [3,9,20,15,7]",
+  "signature": "def build_tree(preorder, inorder):",
+  "steps": [
+   {
+    "text": "Map each value to its index in inorder for O(1) lookups, and keep a position in preorder",
+    "clue": "A dict comprehension with enumerate.",
+    "template": "idx = {v: i for i, v in ____(inorder)}\npos = [0]",
+    "code": "idx = {v: i for i, v in enumerate(inorder)}\npos = [0]",
+    "idioms": [
+     "enumerate"
+    ]
+   },
+   {
+    "text": "A helper builds the subtree for the inorder range lo..hi; an empty range is no node",
+    "clue": "lo > hi means nothing left.",
+    "template": "def build(lo, hi):\n    if lo > ____:\n        return None",
+    "code": "def build(lo, hi):\n    if lo > hi:\n        return None",
+    "idioms": [
+     "recursion"
+    ]
+   },
+   {
+    "text": "The next preorder value is this subtree's root",
+    "clue": "Read preorder[pos[0]], then move pos forward.",
+    "template": "    val = preorder[pos[0]]\n    pos[0] += 1\n    node = TreeNode(____)\n    mid = idx[val]",
+    "code": "    val = preorder[pos[0]]\n    pos[0] += 1\n    node = TreeNode(val)\n    mid = idx[val]",
+    "idioms": []
+   },
+   {
+    "text": "Everything left of it in inorder is the left subtree; build left first, then right",
+    "clue": "Order matters: preorder lists the left subtree before the right.",
+    "template": "    node.left = build(lo, mid - 1)\n    node.right = build(mid + 1, ____)\n    return node\nreturn build(0, len(inorder) - 1)",
+    "code": "    node.left = build(lo, mid - 1)\n    node.right = build(mid + 1, hi)\n    return node\nreturn build(0, len(inorder) - 1)",
+    "idioms": [
+     "recursion"
+    ]
+   }
+  ],
+  "tests": [
+   [
+    [
+     3,
+     9,
+     20,
+     15,
+     7
+    ],
+    [
+     9,
+     3,
+     15,
+     20,
+     7
+    ]
+   ],
+   [
+    [
+     -1
+    ],
+    [
+     -1
+    ]
+   ],
+   [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     1
+    ]
+   ]
+  ],
+  "postlude": "from collections import deque as _dq\n\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef _tree(vals):\n    if not vals:\n        return None\n    root = TreeNode(vals[0])\n    q = _dq([root])\n    i = 1\n    while q and i < len(vals):\n        node = q.popleft()\n        if i < len(vals) and vals[i] is not None:\n            node.left = TreeNode(vals[i]); q.append(node.left)\n        i += 1\n        if i < len(vals) and vals[i] is not None:\n            node.right = TreeNode(vals[i]); q.append(node.right)\n        i += 1\n    return root\n\ndef _level(root):\n    out, q = [], _dq([root] if root else [])\n    while q:\n        n = q.popleft()\n        out.append(n.val)\n        if n.left: q.append(n.left)\n        if n.right: q.append(n.right)\n    return out\n\ndef _check(pre, ino):\n    return _level(build_tree(pre, ino))",
+  "check": "_check",
+  "solution": "def build_tree(preorder, inorder):\n    idx = {v: i for i, v in enumerate(inorder)}\n    pos = [0]\n    def build(lo, hi):\n        if lo > hi:\n            return None\n        val = preorder[pos[0]]\n        pos[0] += 1\n        node = TreeNode(val)\n        mid = idx[val]\n        node.left = build(lo, mid - 1)\n        node.right = build(mid + 1, hi)\n        return node\n    return build(0, len(inorder) - 1)\n",
+  "func": "_check",
+  "expected": [
+   [
+    3,
+    9,
+    20,
+    15,
+    7
+   ],
+   [
+    -1
+   ],
+   [
+    1,
+    2
+   ]
+  ]
  }
 ];

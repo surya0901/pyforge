@@ -8,7 +8,8 @@ import { useSample } from './AI';
 import { coachRun, OwnStepCard, PlanWriter, type PlanReview, type PlanStep } from './OwnPlan';
 import { aiName } from '../lib/cloud';
 import { logMistake, SLIP_KINDS, blueprintForWeakness } from '../lib/mistakes';
-import { getLocal, setLocal } from '../lib/storage';
+import { getLocal, setLocal, today } from '../lib/storage';
+import { NEETCODE } from '../data/neetcode';
 import type { Blueprint } from '../types';
 import CodeEditor from './CodeEditor';
 import { Button, Card, PageTitle } from './ui';
@@ -80,8 +81,8 @@ export function lint(code: string, p: Blueprint): Lint[] {
     if (/^(if|elif|while)\b[^=!<>]*[^=!<>]=[^=]/.test(t)) out.push({ line: n, msg: 'Use == to compare. A single = assigns.' });
   });
   // The function itself must keep the right name, or the tests can't find it.
-  const fname = p.signature.match(/def (\w+)/)![1];
-  if (!new RegExp(`def ${fname}\\s*\\(`).test(code)) out.push({ line: 1, msg: `Keep the function name ${fname}. The tests call it by that name.` });
+  const fname = p.signature.match(/(?:def|class) (\w+)/)![1];
+  if (!new RegExp(`(def|class) ${fname}\\b`).test(code)) out.push({ line: 1, msg: `Keep the name ${fname}. The tests call it by that name.` });
   return out;
 }
 
@@ -150,6 +151,25 @@ export default function BlueprintBuilder({ initial }: { initial?: string }) {
         </Card>
         <WeakIdioms onPick={(id) => setIdiomFilter(idiomFilter === id ? undefined : id)} active={idiomFilter} />
       </div>
+      {(() => {
+        const t = getLocal<{ picks?: string[] }>(`pyforge.daily.${today()}`, {}).picks ?? [];
+        const list = t.map((sl) => ({ nc: NEETCODE.find((x) => x.slug === sl), bp: BLUEPRINTS.find((b) => b.nc === sl) })).filter((x) => x.nc);
+        if (!list.length) return null;
+        return (
+          <Card className="mb-6 p-5">
+            <h3 className="mb-2 font-semibold text-zinc-100">Today's NeetCode problems</h3>
+            <ul className="space-y-1.5 text-[15px]">
+              {list.map(({ nc, bp }) => (
+                <li key={nc!.slug} className="flex flex-wrap items-center gap-x-3">
+                  <span className="text-zinc-200">{nc!.name}</span>
+                  {bp ? <button className="link text-sm" onClick={() => setSel(bp.id)}>Plan and code it</button> : <span className="text-xs text-zinc-500">no blueprint yet</span>}
+                  <a className="link text-sm" href={nc!.url} target="_blank" rel="noreferrer">NeetCode</a>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        );
+      })()}
       {idiomFilter && (
         <p className="mb-4 text-sm text-zinc-400">Showing problems that use <span className="text-zinc-100">{IDIOMS[idiomFilter]?.label}</span>. <button className="link" onClick={() => setIdiomFilter(undefined)}>Show all</button></p>
       )}
@@ -253,7 +273,7 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
   const seq = useRef(0);
   const sample = useSample();
   const hintsUsed = levels.reduce<number>((a, l) => a + l, 0);
-  const fname = p.signature.match(/def (\w+)/)![1];
+  const fname = p.signature.match(/(?:def|class) (\w+)/)![1];
   const ref = useMemo(() => refCode(p), [p]);
 
   const runCheck = async (src: string) => {
@@ -379,9 +399,14 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
 
   const firstErr = r?.compileError ?? r?.results.find((t) => t.error)?.error;
   const friendly = firstErr ? explainError(firstErr, code, p) : null;
-  const liveLint = lint(code, p).filter((x) => !x.msg.includes('____') && !x.msg.startsWith('Keep the function'));
+  const liveLint = lint(code, p).filter((x) => !x.msg.includes('____') && !x.msg.startsWith('Keep the name'));
   const blanks = /____/.test(code);
-  const nextP = BLUEPRINTS[(BLUEPRINTS.indexOf(p) + 1) % BLUEPRINTS.length];
+  // Today's NeetCode problems from the checklist: after this one, go to the other.
+  const todays = getLocal<{ picks?: string[] }>(`pyforge.daily.${today()}`, {}).picks ?? [];
+  const otherSlug = todays.includes(p.nc) ? todays.find((sl) => sl !== p.nc) : undefined;
+  const otherNC = otherSlug ? NEETCODE.find((x) => x.slug === otherSlug) : undefined;
+  const otherBp = otherSlug ? BLUEPRINTS.find((b) => b.nc === otherSlug) : undefined;
+  const nextP = otherBp ?? BLUEPRINTS[(BLUEPRINTS.indexOf(p) + 1) % BLUEPRINTS.length];
 
   return (
     <div className="max-w-6xl">
@@ -478,9 +503,19 @@ function Workbench({ p, onBack, onNext }: { p: Blueprint; onBack: () => void; on
             <Card className="mt-3 border-emerald-500/40 p-4">
               <p className="font-semibold text-emerald-300">{perf?.slow ? 'Correct. Next: make it optimal.' : blind ? 'Passed blind. This one is yours now.' : own ? 'Your plan works.' : hintsUsed === 0 ? 'Passed with no hints.' : `Passed, using ${hintsUsed} hint level${hintsUsed === 1 ? '' : 's'}.`}</p>
               <p className="mt-1 text-sm text-zinc-300">{perf?.slow ? 'Rewrite the plan with a faster idea, or switch to the blueprint steps to see the optimal one.' : blind ? 'Come back in a few days and do it blind once more. Speed comes from repeats.' : 'Now type it again with no plan at all. The second time is what moves it from copying to recall.'}</p>
-              <div className="mt-3 flex gap-2">
-                {!blind && <Button onClick={() => reset(true)}><EyeOff size={14} />Start the blind pass</Button>}
-                <Button variant={blind ? 'primary' : 'ghost'} onClick={() => onNext(nextP.id)}>Next: {nextP.title}</Button>
+              {!perf?.slow && (
+                <div className="mt-3 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300">
+                  <span className="font-medium text-zinc-100">Now submit it on NeetCode.</span> Without looking at your code here, open the problem there and type it again from memory. That's your blind pass, and it ticks the problem off on NeetCode and in your progress here.
+                  <div className="mt-2"><a href={`https://neetcode.io/problems/${p.nc}`} target="_blank" rel="noreferrer" className="link font-medium">Submit {p.title} on NeetCode</a></div>
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {otherNC && !otherBp ? (
+                  <a href={otherNC.url} target="_blank" rel="noreferrer"><Button>Next today: {otherNC.name} on NeetCode</Button></a>
+                ) : (
+                  <Button variant={otherBp ? 'primary' : 'ghost'} onClick={() => onNext(nextP.id)}>{otherBp ? `Next today: ${nextP.title}` : `Next: ${nextP.title}`}</Button>
+                )}
+                {!blind && !otherBp && <Button variant="ghost" onClick={() => reset(true)}><EyeOff size={14} />Blind pass here instead</Button>}
               </div>
             </Card>
           )}

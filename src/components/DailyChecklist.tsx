@@ -11,7 +11,9 @@ import { DECKS, FLASHCARDS } from '../data/flashcards';
 import { COMPANY_NAME } from '../data/meta';
 import { mistakeLog } from '../lib/mistakes';
 import { mastery } from '../lib/storage';
-import { blueprintLog, nextBlueprint } from './BlueprintBuilder';
+import { getStatus } from './BlueprintBuilder';
+import { BLUEPRINTS } from '../data/blueprints';
+import { lessonForSlug } from '../lib/coverage';
 import { finderAnswers, finderSessionNow, finderSessionsDone } from './PatternDrill';
 import { nextProblems } from './StudyPath';
 
@@ -44,7 +46,14 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
 
   // Lock today's NeetCode picks and lesson at the start of the day so the list doesn't shift as you solve.
   const picks = useMemo(() => state.picks ?? nextProblems(solved, 2).map((p) => p.slug), [state.picks]); // eslint-disable-line react-hooks/exhaustive-deps
-  const lessonId = useMemo(() => state.lesson ?? (patternsSummary(progress, solved).rows.find((r) => !r.cov.learned)?.lesson.id ?? LESSONS[0].id), [state.lesson]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Today's lesson is the pattern behind today's problems (first one you haven't learned), so learning and solving line up.
+  const lessonId = useMemo(() => {
+    if (state.lesson) return state.lesson;
+    const rows = patternsSummary(progress, solved).rows;
+    const learned = (id: string) => rows.find((r) => r.lesson.id === id)?.cov.learned;
+    const fromPicks = picks.map((sl) => lessonForSlug(sl)).find((id) => id && !learned(id));
+    return fromPicks ?? rows.find((r) => !r.cov.learned)?.lesson.id ?? LESSONS[0].id;
+  }, [state.lesson]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!state.picks || !state.lesson) save({ ...state, picks, lesson: lessonId }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -66,20 +75,41 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
   const lessonChecks = lesson.check.filter((_, i) => progress.lessons?.[lesson.id]?.checks?.[i]).length;
   // Opening the lesson isn't enough: it counts once every quick check is passed.
   const lessonDone = lessonChecks === lesson.check.length;
-  const bpToday = blueprintLog().filter((h) => h.at >= start.getTime());
-  const bpNext = nextBlueprint(lessonId);
   const deckPick = useMemo(() => pickDeck(progress, state.deck), [state.deck]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!state.deck) save({ ...state, deck: deckPick.id }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const pickProbs = picks.map((s) => NEETCODE.find((p) => p.slug === s)!).filter(Boolean);
-  const ncDone = pickProbs.filter((p) => solved.has(p.slug)).length;
+  // A problem counts as done once it passes here or shows as solved on NeetCode (the sync can lag up to an hour).
+  const bpStatus = getStatus();
+  const passedHere = (slug: string) => { const b = BLUEPRINTS.find((x) => x.nc === slug); const st = b && bpStatus[b.id]; return !!st && Math.max(st.guided ?? 0, st.blind ?? 0) >= start.getTime(); };
+  const probDone = (slug: string) => solved.has(slug) || passedHere(slug);
+  const ncDone = pickProbs.filter((p) => probDone(p.slug)).length;
+  const nextPick = pickProbs.find((p) => !probDone(p.slug));
+  const nextBp = nextPick && BLUEPRINTS.find((b) => b.nc === nextPick.slug);
 
   const tasks = [
-    { id: 'neetcode', mins: 70, title: `Solve ${pickProbs.length} NeetCode problems`, detail: `${pickProbs.map((p) => p.name).join(' and ')}. Try 25 minutes on your own first. Stuck? Each problem page has NeetCode's video walkthrough.`, done: ncDone >= pickProbs.length || state.manual.neetcode, auto: true,
-      action: pickProbs[ncDone] ? <a href={pickProbs[ncDone].url} target="_blank" rel="noreferrer" className="link">Open {pickProbs[ncDone].name}</a> : null, progress: `${ncDone}/${pickProbs.length}` },
+    { id: 'neetcode', mins: 80, title: `Solve today's ${pickProbs.length} NeetCode problems`, done: ncDone >= pickProbs.length || state.manual.neetcode, auto: true, progress: `${ncDone}/${pickProbs.length}`,
+      detail: (
+        <span className="block">
+          <span className="block">Next in NeetCode's roadmap order. For each one: write your plan and code it here (hints, checks, speed test), then type it again from memory on NeetCode and submit. That second time is your blind pass.</span>
+          <span className="mt-2 block space-y-1">
+            {pickProbs.map((pp, k) => {
+              const bp = BLUEPRINTS.find((b) => b.nc === pp.slug);
+              const solvedNC = solved.has(pp.slug), here = passedHere(pp.slug);
+              return (
+                <span key={pp.slug} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className={solvedNC ? 'text-emerald-300' : here ? 'text-amber-200' : 'text-zinc-300'}>{solvedNC ? '✓' : here ? '◐' : `${k + 1}.`} {pp.name} <span className="text-zinc-500">· {pp.difficulty}</span></span>
+                  {bp && !solvedNC && <button onClick={() => open('blueprint', { focus: bp.id })} className="link">{here ? 'Open again' : 'Plan and code it'}</button>}
+                  {!solvedNC && <a href={pp.url} target="_blank" rel="noreferrer" className="link">{here ? 'Submit on NeetCode' : bp ? 'NeetCode page' : 'Solve on NeetCode'}</a>}
+                  {here && !solvedNC && <span className="text-xs text-zinc-500">passed here, ticks fully once NeetCode shows it solved</span>}
+                </span>
+              );
+            })}
+          </span>
+        </span>
+      ),
+      action: nextPick ? (nextBp ? <button onClick={() => open('blueprint', { focus: nextBp.id })} className="link">Start {nextPick.name}</button> : <a href={nextPick.url} target="_blank" rel="noreferrer" className="link">Open {nextPick.name}</a>) : null },
     { id: 'lesson', mins: 15, title: `Learn the pattern: ${lesson.name}`, detail: 'Read the lesson, watch one of its linked videos, then pass every quick check question.', done: lessonDone || state.manual.lesson, auto: true, progress: `${lessonChecks}/${lesson.check.length} checks`,
       action: <button onClick={() => onLearn(lesson.id)} className="link">Read lesson</button> },
-    { id: 'blueprint', mins: 20, title: 'Blueprint builder: one problem, then its blind pass', detail: 'Type the solution step by step with hints, then type it again from just the function line. This is the fix for freezing on a blank editor.', done: bpToday.some((h) => h.blind) || state.manual.blueprint, auto: true,
-      action: <button onClick={() => open('blueprint', { focus: bpNext.id })} className="link">Open {bpNext.title}</button>, progress: `${Math.min(bpToday.length, 2)}/2 passes` },
     { id: 'finder', mins: 15, title: 'Pattern finder: one session', detail: finderSessionToday ? 'Done: you finished a full session today.' : sessionNow && sessionNow.pos > 0 ? `You're ${sessionNow.pos} of ${sessionNow.len} questions into your session. Finish it to tick this.` : `One session is ${sessionNow?.len ?? 10} questions, with a stopwatch report at the end.`, done: finderSessionToday || state.manual.finder, auto: true,
       action: <button onClick={() => open('pattern')} className="link">{sessionNow && sessionNow.pos > 0 && !finderSessionToday ? 'Continue' : 'Start'}</button>, progress: finderSessionToday ? '1/1 session' : `${sessionNow?.pos ?? 0}/${sessionNow?.len ?? 10}` },
     { id: 'oa', mins: 25, title: 'Mock OA: one timed set', detail: 'The 20 minute debugging section on weekdays, a full 2 problem OA on weekends.', done: oaToday > 0 || state.manual.oa, auto: true,
@@ -147,7 +177,7 @@ export default function DailyChecklist({ progress, solved, open, onLearn }: Prop
                 <span className={`font-medium ${t.done ? 'text-zinc-400 line-through decoration-zinc-600' : 'text-zinc-100'}`}>{t.title}</span>
                 <span className="tnum text-xs text-zinc-500">~{t.mins} min{t.progress ? ` · ${t.progress}` : ''}</span>
               </div>
-              <p className="text-sm text-zinc-500">{t.detail}</p>
+              <div className="text-sm text-zinc-500">{t.detail}</div>
             </div>
             {!t.done && t.action && <div className="shrink-0 self-center text-sm">{t.action}</div>}
           </li>
