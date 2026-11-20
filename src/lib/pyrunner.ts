@@ -110,34 +110,42 @@ self.onmessage = async (e) => {
   }
 };`;
 
-let worker: Worker | null = null;
-let ready: Promise<void> | null = null;
-let seq = 0;
-const pending = new Map<number, (m: { ok: boolean; out?: string; error?: string }) => void>();
+type Msg = { ok: boolean; out?: string; error?: string };
 
-function call(msg: Record<string, unknown>): Promise<{ ok: boolean; out?: string; error?: string }> {
-  const id = ++seq;
-  return new Promise((res) => { pending.set(id, res); worker!.postMessage({ ...msg, id }); });
+/** One Python worker. Tests, step checks and speed checks each get their own, so a slow one never blocks the others. */
+class Runner {
+  worker: Worker | null = null;
+  ready: Promise<void> | null = null;
+  seq = 0;
+  pending = new Map<number, (m: Msg) => void>();
+  call(msg: Record<string, unknown>): Promise<Msg> {
+    const id = ++this.seq;
+    return new Promise((res) => { this.pending.set(id, res); this.worker!.postMessage({ ...msg, id }); });
+  }
+  warmUp(): Promise<void> {
+    if (this.ready) return this.ready;
+    this.worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })), { type: 'module' });
+    this.worker.onmessage = (e) => { const r = this.pending.get(e.data.id); this.pending.delete(e.data.id); r?.(e.data); };
+    this.ready = this.call({ type: 'init', base: PY_BASE, harness: HARNESS, stepcheck: STEPCHECK }).then((m) => {
+      if (!m.ok) { this.ready = null; this.worker?.terminate(); this.worker = null; throw new Error(m.error); }
+    });
+    return this.ready;
+  }
+  kill() {
+    this.worker?.terminate(); this.worker = null; this.ready = null;
+    for (const r of this.pending.values()) r({ ok: false, error: 'stopped' });
+    this.pending.clear();
+  }
 }
-
-export function warmUp(): Promise<void> {
-  if (ready) return ready;
-  worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })), { type: 'module' });
-  worker.onmessage = (e) => { const r = pending.get(e.data.id); pending.delete(e.data.id); r?.(e.data); };
-  ready = call({ type: 'init', base: PY_BASE, harness: HARNESS, stepcheck: STEPCHECK }).then((m) => {
-    if (!m.ok) { ready = null; worker?.terminate(); worker = null; throw new Error(m.error); }
-  });
-  return ready;
-}
-
-function kill() { worker?.terminate(); worker = null; ready = null; pending.clear(); }
+const RUN = new Runner(), STEPS = new Runner(), PERF = new Runner();
+export const warmUp = () => RUN.warmUp();
 
 export async function runTests(src: string, func: string, kind: string, tests: unknown[], expected: unknown[], cmp: string, timeoutMs = 8000): Promise<RunResult> {
-  try { await warmUp(); } catch (e) { return { results: [], loadError: `Couldn't start Python here (${String((e as Error).message).slice(0, 120)}). Use the pyforge website: ${SITE}` }; }
+  try { await RUN.warmUp(); } catch (e) { return { results: [], loadError: `Couldn't start Python here (${String((e as Error).message).slice(0, 120)}). Use the pyforge website: ${SITE}` }; }
   const payload = JSON.stringify({ src, func, kind, tests, expected, cmp });
   const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
-  const res = await Promise.race([call({ type: 'run', payload }), timer]);
-  if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { results: [], timeout: true }; }
+  const res = await Promise.race([RUN.call({ type: 'run', payload }), timer]);
+  if (res === 'timeout') { RUN.kill(); RUN.warmUp().catch(() => {}); return { results: [], timeout: true }; }
   if (!res.ok) return { results: [], compileError: res.error };
   return JSON.parse(res.out!) as RunResult;
 }
@@ -167,10 +175,10 @@ export interface StepCheck {
 
 /** Runs your code and the blueprint side by side and reports, step by step, whether your logic makes the same values. */
 export async function checkSteps(payload: { user: string; ref: string; fname: string; call: string; tests: unknown[]; expected: unknown[]; postlude: string; nsteps: number }, timeoutMs = 6000): Promise<StepCheck> {
-  try { await warmUp(); } catch (e) { return { loadError: String((e as Error).message) }; }
+  try { await STEPS.warmUp(); } catch (e) { return { loadError: String((e as Error).message) }; }
   const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
-  const res = await Promise.race([call({ type: 'steps', payload: JSON.stringify(payload) }), timer]);
-  if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { timeout: true }; }
+  const res = await Promise.race([STEPS.call({ type: 'steps', payload: JSON.stringify(payload) }), timer]);
+  if (res === 'timeout') { STEPS.kill(); STEPS.warmUp().catch(() => {}); return { timeout: true }; }
   if (!res.ok) return { fatal: res.error };
   return JSON.parse(res.out!) as StepCheck;
 }
@@ -178,10 +186,10 @@ export async function checkSteps(payload: { user: string; ref: string; fname: st
 export interface PerfResult { n?: number; ref?: number; mine?: number; ratio?: number; slow?: boolean; skip?: string; timeout?: boolean }
 /** Your solution vs the blueprint's on a bigger input. A big gap means a worse time complexity. */
 export async function checkPerf(payload: { user: string; ref: string; call: string; tests: unknown[]; postlude: string }, timeoutMs = 7000): Promise<PerfResult> {
-  try { await warmUp(); } catch { return { skip: 'python' }; }
+  try { await PERF.warmUp(); } catch { return { skip: 'python' }; }
   const timer = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
-  const res = await Promise.race([call({ type: 'perf', payload: JSON.stringify(payload) }), timer]);
-  if (res === 'timeout') { kill(); warmUp().catch(() => {}); return { timeout: true, slow: true }; }
+  const res = await Promise.race([PERF.call({ type: 'perf', payload: JSON.stringify(payload) }), timer]);
+  if (res === 'timeout') { PERF.kill(); return { timeout: true, slow: true }; }
   if (!res.ok) return { skip: res.error };
   return JSON.parse(res.out!) as PerfResult;
 }
